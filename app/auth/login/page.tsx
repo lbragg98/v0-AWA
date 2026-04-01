@@ -35,7 +35,24 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
-      router.push('/app/dashboard')
+
+      // Check onboarding status to decide where to redirect
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: fitnessProfile } = await supabase
+          .from('fitness_profiles')
+          .select('onboarding_completed')
+          .eq('user_id', user.id)
+          .single()
+
+        if (fitnessProfile?.onboarding_completed) {
+          router.push('/app/dashboard')
+        } else {
+          router.push('/onboarding')
+        }
+      } else {
+        router.push('/app/dashboard')
+      }
       router.refresh()
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred')

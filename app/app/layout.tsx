@@ -14,6 +14,17 @@ export default async function AppLayout({
     redirect('/auth/login')
   }
 
+  // Block access to the app if onboarding is not completed
+  const { data: fitnessProfile } = await supabase
+    .from('fitness_profiles')
+    .select('onboarding_completed')
+    .eq('user_id', user.id)
+    .single()
+
+  if (!fitnessProfile?.onboarding_completed) {
+    redirect('/onboarding')
+  }
+
   // Fetch user profile for the header
   const { data: profile } = await supabase
     .from('profiles')
