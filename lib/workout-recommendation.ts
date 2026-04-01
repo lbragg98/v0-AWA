@@ -1,3 +1,4 @@
+// Workout recommendation engine - generates personalized workouts
 import type { ExerciseLibrary, FitnessProfile, MuscleProgress } from '@/types/database'
 import { getRecoveryReadiness } from './muscle-intelligence'
 
@@ -58,26 +59,26 @@ export function generateWorkoutRecommendation(
     }))
     .filter((r) => r.name)
 
-  const warmupExercises = buildWarmup(exercises, preferences)
-  const mainExercises = buildMainLifts(exercises, preferences, fitnessProfile, recentlyTrained)
-  const accessories = buildAccessories(exercises, preferences, mainExercises, recentlyTrained)
-  const finisher = buildFinisher(exercises, preferences, preferences.energyLevel >= 4)
-  const cooldown = buildCooldown(exercises)
+  const warmupExercises = createWarmup(exercises, preferences)
+  const mainExercises = createMainLifts(exercises, preferences, fitnessProfile, recentlyTrained)
+  const accessories = createAccessories(exercises, preferences, mainExercises, recentlyTrained)
+  const finisher = createFinisher(exercises, preferences, preferences.energyLevel >= 4)
+  const cooldown = createCooldown(exercises)
 
-  const estimatedDuration = computeDuration([...warmupExercises, ...mainExercises, ...accessories, ...(finisher ? [finisher] : []), ...cooldown])
-  const smartGoal = buildSmartGoalText(mainExercises, preferences, fitnessProfile)
+  const estimatedDuration = calculateDuration([...warmupExercises, ...mainExercises, ...accessories, ...(finisher ? [finisher] : []), ...cooldown])
+  const smartGoal = createSmartGoalText(mainExercises, preferences)
   
   const reasoning: WorkoutReasoning = {
-    selectedMuscles: `Focused on ${preferences.targetMuscles.join(', ')}`,
+    selectedMuscles: 'Focused on ' + preferences.targetMuscles.join(', '),
     recoveryStatus: recentlyTrained.length > 0 
-      ? `Avoiding heavy work on recently trained muscles` 
-      : `All muscles recovered and ready`,
-    equipmentFit: `Using ${preferences.availableEquipment.join(', ')}`,
-    timefit: `${estimatedDuration} min session fits your ${preferences.timeAvailable} min availability`,
+      ? 'Avoiding heavy work on recently trained muscles' 
+      : 'All muscles recovered and ready',
+    equipmentFit: 'Using ' + preferences.availableEquipment.join(', '),
+    timefit: estimatedDuration + ' min session fits your ' + preferences.timeAvailable + ' min availability',
   }
 
   return {
-    name: buildWorkoutName(preferences),
+    name: createWorkoutName(preferences),
     smartGoal,
     estimatedDuration,
     exercises: [...mainExercises, ...accessories],
@@ -88,7 +89,7 @@ export function generateWorkoutRecommendation(
   }
 }
 
-function buildWarmup(exercises: ExerciseLibrary[], preferences: RecommendationPreferences): GeneratedExercise[] {
+function createWarmup(exercises: ExerciseLibrary[], _preferences: RecommendationPreferences): GeneratedExercise[] {
   const warmups = exercises.filter((e) => e.category === 'warmup')
   if (warmups.length === 0) {
     return [
@@ -118,10 +119,10 @@ function buildWarmup(exercises: ExerciseLibrary[], preferences: RecommendationPr
   }))
 }
 
-function buildMainLifts(
+function createMainLifts(
   exercises: ExerciseLibrary[],
   preferences: RecommendationPreferences,
-  fitnessProfile: FitnessProfile | null,
+  _fitnessProfile: FitnessProfile | null,
   recentlyTrained: Array<{ name: string; recoveryReadiness: number }>
 ): GeneratedExercise[] {
   const candidates = exercises.filter((e) => {
@@ -150,11 +151,11 @@ function buildMainLifts(
   }))
 }
 
-function buildAccessories(
+function createAccessories(
   exercises: ExerciseLibrary[],
   preferences: RecommendationPreferences,
   mainLifts: GeneratedExercise[],
-  recentlyTrained: Array<{ name: string; recoveryReadiness: number }>
+  _recentlyTrained: Array<{ name: string; recoveryReadiness: number }>
 ): GeneratedExercise[] {
   const trainedMuscles = new Set([
     ...mainLifts.map((e) => e.primaryMuscle.toLowerCase()),
@@ -184,7 +185,7 @@ function buildAccessories(
   }))
 }
 
-function buildFinisher(exercises: ExerciseLibrary[], preferences: RecommendationPreferences, highEnergy: boolean): GeneratedExercise | null {
+function createFinisher(exercises: ExerciseLibrary[], preferences: RecommendationPreferences, highEnergy: boolean): GeneratedExercise | null {
   if (!highEnergy || preferences.timeAvailable < 50) return null
   const finishers = exercises.filter((e) => e.category === 'cardio')
   if (finishers.length === 0) return null
@@ -202,7 +203,7 @@ function buildFinisher(exercises: ExerciseLibrary[], preferences: Recommendation
   }
 }
 
-function buildCooldown(exercises: ExerciseLibrary[]): GeneratedExercise[] {
+function createCooldown(exercises: ExerciseLibrary[]): GeneratedExercise[] {
   const cooldowns = exercises.filter((e) => e.category === 'cooldown')
   if (cooldowns.length === 0) {
     return [
@@ -232,7 +233,7 @@ function buildCooldown(exercises: ExerciseLibrary[]): GeneratedExercise[] {
   }))
 }
 
-function computeDuration(exercises: GeneratedExercise[]): number {
+function calculateDuration(exercises: GeneratedExercise[]): number {
   let total = 0
   exercises.forEach((e) => {
     const timePerSet = e.type === 'warmup' ? 3 : e.type === 'cooldown' ? 5 : e.type === 'finisher' ? 3 : 4
@@ -242,17 +243,17 @@ function computeDuration(exercises: GeneratedExercise[]): number {
   return Math.round(total)
 }
 
-function buildSmartGoalText(mainLifts: GeneratedExercise[], preferences: RecommendationPreferences, _fitnessProfile: FitnessProfile | null): string {
+function createSmartGoalText(mainLifts: GeneratedExercise[], preferences: RecommendationPreferences): string {
   if (mainLifts.length === 0) {
     return 'Complete a balanced workout session'
   }
   const reps = mainLifts[0].reps.split('-')[0]
   const muscleStr = preferences.targetMuscles.join(' and ')
-  const setsStr = mainLifts[0].sets
+  const setsStr = String(mainLifts[0].sets)
   return 'Complete ' + mainLifts.length + ' exercises for ' + muscleStr + ' with ' + setsStr + ' sets of ' + reps + '+ reps'
 }
 
-function buildWorkoutName(preferences: RecommendationPreferences): string {
+function createWorkoutName(preferences: RecommendationPreferences): string {
   const muscleNames = preferences.targetMuscles.slice(0, 2).map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(' & ')
   return muscleNames
 }
