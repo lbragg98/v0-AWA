@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { updateStreakAfterWorkout } from '@/lib/workout-utils'
+import { updateMuscleProgressFromWorkout } from '@/lib/muscle-progression'
 import type { CompletedSet } from '@/types/workouts'
 
 interface WorkoutProgressData {
@@ -15,7 +16,7 @@ interface WorkoutProgressData {
  * Process workout completion:
  * 1. Update user streaks
  * 2. Detect PRs from sets
- * 3. Update muscle progress
+ * 3. Update muscle progression
  */
 export async function processWorkoutCompletion(data: WorkoutProgressData) {
   try {
@@ -24,6 +25,16 @@ export async function processWorkoutCompletion(data: WorkoutProgressData) {
 
     // Detect and save PRs
     await detectAndSavePRs(data.userId, data.sets)
+
+    // Update muscle progression
+    await updateMuscleProgressFromWorkout(
+      data.userId,
+      data.sets.map((set) => ({
+        exerciseId: set.exerciseId,
+        weight: set.weight || 0,
+        reps: set.reps || 0,
+      }))
+    )
   } catch (error) {
     console.error('[v0] Error processing workout completion:', error)
     throw error
@@ -74,3 +85,4 @@ async function detectAndSavePRs(userId: string, sets: CompletedSet[]) {
     console.error('[v0] Error detecting PRs:', error)
   }
 }
+
