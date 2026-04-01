@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ProfileBodyMap } from '@/components/profile/profile-body-map'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -17,14 +18,53 @@ export default async function ProfilePage() {
     .eq('user_id', user?.id)
     .single()
 
+  // Fetch muscle groups and progress
+  const { data: muscleGroups } = await supabase
+    .from('muscle_groups')
+    .select('*')
+    .order('name')
+
+  const { data: muscleProgress } = await supabase
+    .from('muscle_progress')
+    .select('*')
+    .eq('user_id', user?.id)
+
+  // Create progress map
+  const progressMap = new Map(
+    muscleProgress?.map(p => [p.muscle_group_id, p]) || []
+  )
+
+  // Combine for display
+  const muscleData = muscleGroups?.map(group => {
+    const userProgress = progressMap.get(group.id)
+    return {
+      id: userProgress?.id || '',
+      muscleGroupId: group.id,
+      muscleName: group.slug,
+      displayName: group.display_name,
+      xp: userProgress?.xp || 0,
+      level: userProgress?.level || 0,
+      tier: userProgress?.tier || 'unawakened',
+      weeklyVolume: userProgress?.weekly_volume || 0,
+      strengthScore: Number(userProgress?.strength_score) || 0,
+      consistencyScore: Number(userProgress?.consistency_score) || 0,
+      recoveryScore: Number(userProgress?.recovery_score) || 0,
+      lastTrainedAt: userProgress?.last_trained_at || null,
+      bodySide: group.body_side as 'front' | 'back' | 'both',
+    }
+  }) || []
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Profile</h1>
         <p className="mt-1 text-muted-foreground">
-          Manage your account settings
+          Track your muscle development and manage your account
         </p>
       </div>
+
+      {/* Body Map - Featured Section */}
+      <ProfileBodyMap muscleProgress={muscleData} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
