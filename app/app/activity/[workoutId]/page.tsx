@@ -11,15 +11,23 @@ import { ArrowLeft, Clock, Zap, Flame } from 'lucide-react'
 import Link from 'next/link'
 import type { CompletedWorkout, CompletedSet } from '@/types/database'
 
-export default function WorkoutDetailPage({ params }: { params: { workoutId: string } }) {
+export default function WorkoutDetailPage({ params }: { params: Promise<{ workoutId: string }> }) {
   const router = useRouter()
   const supabase = createClient()
   const [workout, setWorkout] = useState<CompletedWorkout | null>(null)
   const [sets, setSets] = useState<CompletedSet[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [workoutId, setWorkoutId] = useState<string | null>(null)
+
+  // Unwrap params in useEffect since they're now async in Next.js 16
+  useEffect(() => {
+    params.then((p) => setWorkoutId(p.workoutId))
+  }, [params])
 
   useEffect(() => {
+    if (!workoutId) return
+
     const fetchWorkoutDetail = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -32,7 +40,7 @@ export default function WorkoutDetailPage({ params }: { params: { workoutId: str
         const { data: workoutData, error: workoutError } = await supabase
           .from('completed_workouts')
           .select('*')
-          .eq('id', params.workoutId)
+          .eq('id', workoutId)
           .eq('user_id', user.id)
           .single()
 
@@ -47,7 +55,7 @@ export default function WorkoutDetailPage({ params }: { params: { workoutId: str
         const { data: setsData, error: setsError } = await supabase
           .from('completed_sets')
           .select('*')
-          .eq('completed_workout_id', params.workoutId)
+          .eq('completed_workout_id', workoutId)
           .order('exercise_index, set_number')
 
         if (setsError) {
@@ -65,7 +73,7 @@ export default function WorkoutDetailPage({ params }: { params: { workoutId: str
     }
 
     fetchWorkoutDetail()
-  }, [params.workoutId])
+  }, [workoutId])
 
   if (isLoading) {
     return (
