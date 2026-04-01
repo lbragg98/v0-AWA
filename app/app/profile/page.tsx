@@ -99,6 +99,14 @@ export default async function ProfilePage() {
               <p className="capitalize text-foreground">{fitnessProfile?.primary_goal?.replace('_', ' ') || '-'}</p>
             </div>
             <div>
+              <p className="text-sm font-medium text-muted-foreground">Height</p>
+              <p className="text-foreground">{fitnessProfile?.height ? `${fitnessProfile.height} ${fitnessProfile.height_unit}` : '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Weight</p>
+              <p className="text-foreground">{fitnessProfile?.weight ? `${fitnessProfile.weight} ${fitnessProfile.weight_unit}` : '-'}</p>
+            </div>
+            <div>
               <p className="text-sm font-medium text-muted-foreground">Workout Frequency</p>
               <p className="text-foreground">{fitnessProfile?.workout_frequency || 0} days/week</p>
             </div>

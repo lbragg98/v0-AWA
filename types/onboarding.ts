@@ -1,8 +1,8 @@
 export interface OnboardingData {
   full_name: string
   age: number | null
-  height_cm: number | null
-  weight_kg: number | null
+  height_in: number | null
+  weight_lbs: number | null
   experience_level: 'beginner' | 'intermediate' | 'advanced'
   primary_goal: 'fat_loss' | 'muscle_gain' | 'strength' | 'endurance' | 'general_fitness'
   available_equipment: string[]

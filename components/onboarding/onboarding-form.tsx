@@ -30,8 +30,8 @@ export function OnboardingForm() {
   const [formData, setFormData] = useState<OnboardingData>({
     full_name: '',
     age: null,
-    height_cm: null,
-    weight_kg: null,
+    height_in: null,
+    weight_lbs: null,
     experience_level: 'beginner',
     primary_goal: 'general_fitness',
     available_equipment: ['bodyweight'],
@@ -124,10 +124,10 @@ export function OnboardingForm() {
           workout_frequency: formData.preferred_training_days.length,
           preferred_workout_duration: formData.preferred_session_minutes,
           available_equipment: formData.available_equipment,
-          weight: formData.weight_kg,
-          weight_unit: 'kg',
-          height: formData.height_cm,
-          height_unit: 'cm',
+          weight: formData.weight_lbs,
+          weight_unit: 'lbs',
+          height: formData.height_in,
+          height_unit: 'in',
           date_of_birth: dateOfBirth,
           preferred_training_days: formData.preferred_training_days,
           onboarding_completed: true,
@@ -208,27 +208,27 @@ export function OnboardingForm() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="height">Height (cm)</Label>
+                    <Label htmlFor="height">Height (inches)</Label>
                     <Input
                       id="height"
                       type="number"
-                      placeholder="175"
-                      min={100}
-                      max={250}
-                      value={formData.height_cm || ''}
-                      onChange={(e) => updateField('height_cm', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="70"
+                      min={48}
+                      max={96}
+                      value={formData.height_in || ''}
+                      onChange={(e) => updateField('height_in', e.target.value ? parseInt(e.target.value) : null)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="weight">Weight (kg)</Label>
+                    <Label htmlFor="weight">Weight (lbs)</Label>
                     <Input
                       id="weight"
                       type="number"
-                      placeholder="70"
-                      min={30}
-                      max={300}
-                      value={formData.weight_kg || ''}
-                      onChange={(e) => updateField('weight_kg', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="185"
+                      min={75}
+                      max={700}
+                      value={formData.weight_lbs || ''}
+                      onChange={(e) => updateField('weight_lbs', e.target.value ? parseInt(e.target.value) : null)}
                     />
                   </div>
                 </div>
