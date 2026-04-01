@@ -1,9 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Zap, Flame, TrendingUp, BarChart3 } from 'lucide-react'
+import { Zap, Flame, TrendingUp, BarChart3, AlertTriangle, Target } from 'lucide-react'
 import Link from 'next/link'
 import type { MuscleProgress, CompletedWorkout } from '@/types/database'
+import { analyzeTrainingBalance } from '@/lib/training-balance'
 
 interface InsightsCardsProps {
   muscleProgress: MuscleProgress[]
@@ -36,10 +37,18 @@ export function InsightsCards({ muscleProgress, workouts }: InsightsCardsProps) 
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const monthWorkouts = workouts.filter((w) => new Date(w.started_at) > thirtyDaysAgo).length
 
-  const weakestMuscleName = weakestMuscle?.muscle_group?.slug?.toLowerCase() || ''
+  // Get training balance analysis
+  const trainingBalance = analyzeTrainingBalance(muscleProgress, workouts, [], null)
+
+  // Find undertrained muscle for the "Needs Work" card
+  const undertrainedMuscle = trainingBalance.leastTrained[0]
+  const undertrainedName = undertrainedMuscle?.muscleName.toLowerCase().replace(/\s+/g, '_') || ''
+
+  // Check if deload is recommended
+  const shouldDeload = trainingBalance.deloadRecommendation.shouldDeload
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Current Momentum */}
       <Card>
         <CardHeader className="pb-3">
@@ -88,31 +97,53 @@ export function InsightsCards({ muscleProgress, workouts }: InsightsCardsProps) 
         </CardContent>
       </Card>
 
-      {/* Needs Attention - with action button */}
+      {/* Undertrained Muscle or Deload Status */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <BarChart3 className="h-4 w-4" />
-            Needs Work
+            {shouldDeload ? (
+              <>
+                <AlertTriangle className="h-4 w-4" />
+                Deload Alert
+              </>
+            ) : (
+              <>
+                <Target className="h-4 w-4" />
+                Undertrained
+              </>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div>
-            <p className="text-lg font-bold text-foreground truncate">
-              {weakestMuscle?.muscle_group?.display_name || '—'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Level {weakestMuscle?.level || 0}
-            </p>
-          </div>
-          {weakestMuscleName && (
+          {shouldDeload ? (
+            <div>
+              <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {trainingBalance.deloadRecommendation.severity === 'strong'
+                  ? 'Deload Recommended'
+                  : 'Consider Lighter Week'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {trainingBalance.deloadRecommendation.reason}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-lg font-bold text-foreground truncate">
+                {undertrainedMuscle?.muscleName || weakestMuscle?.muscle_group?.display_name || '—'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {undertrainedMuscle?.daysAgo ? `${undertrainedMuscle.daysAgo}d since training` : `Level ${weakestMuscle?.level || 0}`}
+              </p>
+            </div>
+          )}
+          {undertrainedName && !shouldDeload && (
             <Button 
               asChild 
               size="sm" 
               variant="outline"
               className="w-full"
             >
-              <Link href={`/app/workouts?focus=${weakestMuscleName}`}>
+              <Link href={`/app/workouts?focus=${undertrainedName}`}>
                 Train This
               </Link>
             </Button>

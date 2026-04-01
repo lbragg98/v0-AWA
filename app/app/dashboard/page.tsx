@@ -7,7 +7,9 @@ import { QuickStartCard } from '@/components/dashboard/quick-start-card'
 import { PersonalRecordsCard } from '@/components/dashboard/personal-records-card'
 import { RecoveryReadinessCard } from '@/components/dashboard/recovery-readiness-card'
 import { TodaysWorkoutCard } from '@/components/dashboard/todays-workout-card'
+import { TrainingBalanceCard } from '@/components/dashboard/training-balance-card'
 import { calculateUserReadiness } from '@/lib/recovery-readiness'
+import { analyzeTrainingBalance } from '@/lib/training-balance'
 import type { Profile, FitnessProfile, UserStreak, Goal, CompletedWorkout, PersonalRecord, DashboardStats } from '@/types/database'
 
 export default async function DashboardPage() {
@@ -97,6 +99,9 @@ export default async function DashboardPage() {
   // Calculate user readiness
   const readiness = calculateUserReadiness(workouts, muscleProgress, fitnessProfile)
 
+  // Calculate training balance
+  const trainingBalance = analyzeTrainingBalance(muscleProgress, workouts, goals, fitnessProfile)
+
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
 
   return (
@@ -116,13 +121,14 @@ export default async function DashboardPage() {
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column - Workouts & Goals */}
+        {/* Left Column - Workouts & Goals & Training Balance */}
         <div className="lg:col-span-2 space-y-6">
           <RecentWorkoutsCard workouts={workouts} />
           <div className="grid gap-6 md:grid-cols-2">
             <GoalsCard goals={goals} />
             <PersonalRecordsCard personalRecords={personalRecords} />
           </div>
+          <TrainingBalanceCard balance={trainingBalance} />
         </div>
 
         {/* Right Column - Profile, Recovery, Today's Workout */}

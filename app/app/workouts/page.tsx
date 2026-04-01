@@ -14,7 +14,8 @@ import { Plus, BookOpen, Dumbbell, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { generateWorkoutRecommendation, type RecommendationPreferences, type GeneratedWorkout } from '@/lib/workout-recommendation'
 import { calculateUserReadiness } from '@/lib/recovery-readiness'
-import type { WorkoutPlan, ExerciseLibrary, FitnessProfile, MuscleProgress, CompletedWorkout } from '@/types/database'
+import { analyzeTrainingBalance } from '@/lib/training-balance'
+import type { WorkoutPlan, ExerciseLibrary, FitnessProfile, MuscleProgress, CompletedWorkout, Goal } from '@/types/database'
 
 export default function WorkoutsPage() {
   const supabase = createClient()
@@ -28,6 +29,8 @@ export default function WorkoutsPage() {
   const [generatedWorkout, setGeneratedWorkout] = useState<GeneratedWorkout | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [readinessState, setReadinessState] = useState<string | null>(null)
+  const [shouldDeload, setShouldDeload] = useState(false)
+  const [goals, setGoals] = useState<Goal[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,12 +41,13 @@ export default function WorkoutsPage() {
       setUser(authUser)
 
       // Fetch all data in parallel
-      const [exercisesRes, plansRes, fitnessRes, muscleRes, workoutsRes] = await Promise.all([
+      const [exercisesRes, plansRes, fitnessRes, muscleRes, workoutsRes, goalsRes] = await Promise.all([
         supabase.from('exercise_library').select('*').order('name'),
         supabase.from('workout_plans').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }),
         supabase.from('fitness_profiles').select('*').eq('user_id', authUser.id).single(),
         supabase.from('muscle_progress').select('*, muscle_group:muscle_groups(*)').eq('user_id', authUser.id),
         supabase.from('completed_workouts').select('*').eq('user_id', authUser.id).order('started_at', { ascending: false }).limit(10),
+        supabase.from('goals').select('*').eq('user_id', authUser.id),
       ])
 
       setExercises((exercisesRes.data || []) as ExerciseLibrary[])
@@ -51,6 +55,7 @@ export default function WorkoutsPage() {
       setFitnessProfile((fitnessRes.data || null) as FitnessProfile | null)
       setMuscleProgress((muscleRes.data || []) as MuscleProgress[])
       setWorkouts((workoutsRes.data || []) as CompletedWorkout[])
+      setGoals((goalsRes.data || []) as Goal[])
 
       // Count days per plan
       const planDaysCounts: Record<string, number> = {}
@@ -66,6 +71,15 @@ export default function WorkoutsPage() {
         (fitnessRes.data || null) as FitnessProfile | null
       )
       setReadinessState(readiness.state)
+
+      // Calculate training balance to check for deload recommendation
+      const balance = analyzeTrainingBalance(
+        (muscleRes.data || []) as MuscleProgress[],
+        (workoutsRes.data || []) as CompletedWorkout[],
+        (goalsRes.data || []) as Goal[],
+        (fitnessRes.data || null) as FitnessProfile | null
+      )
+      setShouldDeload(balance.deloadRecommendation.shouldDeload)
     }
 
     fetchData()
@@ -116,6 +130,16 @@ export default function WorkoutsPage() {
 
         {/* Train Today Tab */}
         <TabsContent value="train-today" className="space-y-4">
+          {shouldDeload && (
+            <Card className="border-orange-500/30 bg-orange-500/5 p-4">
+              <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                Deload Week Recommended
+              </p>
+              <p className="text-xs text-orange-600 dark:text-orange-300 mt-1">
+                Consider reducing volume and intensity this week for better recovery.
+              </p>
+            </Card>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1">
               <TrainTodayPanel
