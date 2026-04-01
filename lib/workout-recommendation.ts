@@ -247,7 +247,7 @@ function buildSmartGoalText(mainLifts: GeneratedExercise[], preferences: Recomme
     return 'Complete a balanced workout session'
   }
   const reps = mainLifts[0].reps.split('-')[0]
-  return \`Complete \${mainLifts.length} exercises for \${preferences.targetMuscles.join(' and ')} with \${mainLifts[0].sets} sets of \${reps}+ reps\`
+  return `Complete ${mainLifts.length} exercises for ${preferences.targetMuscles.join(' and ')} with ${mainLifts[0].sets} sets of ${reps}+ reps`
 }
 
 function buildWorkoutName(preferences: RecommendationPreferences): string {

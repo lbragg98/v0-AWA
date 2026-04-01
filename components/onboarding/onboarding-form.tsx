@@ -142,7 +142,7 @@ export function OnboardingForm() {
 
       if (fitnessError) throw fitnessError
 
-      router.push('/app/dashboard')
+      router.push('/app/today')
       router.refresh()
     } catch (err) {
       console.error('[v0] Onboarding error:', err)
