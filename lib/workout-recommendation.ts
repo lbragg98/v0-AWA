@@ -242,12 +242,14 @@ function computeDuration(exercises: GeneratedExercise[]): number {
   return Math.round(total)
 }
 
-function buildSmartGoalText(mainLifts: GeneratedExercise[], preferences: RecommendationPreferences, fitnessProfile: FitnessProfile | null): string {
+function buildSmartGoalText(mainLifts: GeneratedExercise[], preferences: RecommendationPreferences, _fitnessProfile: FitnessProfile | null): string {
   if (mainLifts.length === 0) {
     return 'Complete a balanced workout session'
   }
   const reps = mainLifts[0].reps.split('-')[0]
-  return `Complete ${mainLifts.length} exercises for ${preferences.targetMuscles.join(' and ')} with ${mainLifts[0].sets} sets of ${reps}+ reps`
+  const muscleStr = preferences.targetMuscles.join(' and ')
+  const setsStr = mainLifts[0].sets
+  return 'Complete ' + mainLifts.length + ' exercises for ' + muscleStr + ' with ' + setsStr + ' sets of ' + reps + '+ reps'
 }
 
 function buildWorkoutName(preferences: RecommendationPreferences): string {
