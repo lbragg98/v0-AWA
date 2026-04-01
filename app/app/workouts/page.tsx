@@ -1,58 +1,81 @@
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ExerciseLibraryBrowser } from '@/components/workouts/exercise-library-browser'
 import { PlanCard } from '@/components/workouts/plan-card'
-import { Plus, BookOpen, Dumbbell } from 'lucide-react'
+import { TrainTodayPanel } from '@/components/workouts/train-today-panel'
+import { GeneratedWorkoutDisplay } from '@/components/workouts/generated-workout-display'
+import { Plus, BookOpen, Dumbbell, Zap } from 'lucide-react'
 import Link from 'next/link'
-import type { WorkoutPlan, ExerciseLibrary } from '@/types/database'
+import { generateWorkoutRecommendation, type RecommendationPreferences, type GeneratedWorkout } from '@/lib/workout-recommendation'
+import type { WorkoutPlan, ExerciseLibrary, FitnessProfile, MuscleProgress } from '@/types/database'
 
-export default async function WorkoutsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export default function WorkoutsPage() {
+  const supabase = createClient()
+  const [user, setUser] = useState<any>(null)
+  const [exercises, setExercises] = useState<ExerciseLibrary[]>([])
+  const [plans, setPlans] = useState<WorkoutPlan[]>([])
+  const [dayCountByPlan, setDayCountByPlan] = useState<Record<string, number>>({})
+  const [fitnessProfile, setFitnessProfile] = useState<FitnessProfile | null>(null)
+  const [muscleProgress, setMuscleProgress] = useState<MuscleProgress[]>([])
+  const [generatedWorkout, setGeneratedWorkout] = useState<GeneratedWorkout | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
 
-  if (!user) {
-    redirect('/auth/login')
-  }
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) {
+        redirect('/auth/login')
+      }
+      setUser(authUser)
 
-  // Fetch exercise library and workout plans in parallel
-  const [exercisesResult, plansResult, planDaysResult] = await Promise.all([
-    supabase
-      .from('exercise_library')
-      .select('*')
-      .order('name'),
-    supabase
-      .from('workout_plans')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('workout_days')
-      .select('workout_plan_id, count'),
-  ])
+      // Fetch all data in parallel
+      const [exercisesRes, plansRes, fitnessRes, muscleRes] = await Promise.all([
+        supabase.from('exercise_library').select('*').order('name'),
+        supabase.from('workout_plans').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }),
+        supabase.from('fitness_profiles').select('*').eq('user_id', authUser.id).single(),
+        supabase.from('muscle_progress').select('*, muscle_group:muscle_groups(*)').eq('user_id', authUser.id'),
+      ])
 
-  const exercises = (exercisesResult.data || []) as ExerciseLibrary[]
-  const plans = (plansResult.data || []) as WorkoutPlan[]
+      setExercises((exercisesRes.data || []) as ExerciseLibrary[])
+      setPlans((plansRes.data || []) as WorkoutPlan[])
+      setFitnessProfile((fitnessRes.data || null) as FitnessProfile | null)
+      setMuscleProgress((muscleRes.data || []) as MuscleProgress[])
 
-  // Count workout days per plan
-  const dayCountByPlan: Record<string, number> = {}
-  if (planDaysResult.data) {
-    planDaysResult.data.forEach((row: any) => {
-      dayCountByPlan[row.workout_plan_id] = row.count || 0
-    })
+      // Count days per plan
+      const planDaysCounts: Record<string, number> = {}
+      plansRes.data?.forEach((plan) => {
+        planDaysCounts[plan.id] = Math.ceil(plan.days_per_week)
+      })
+      setDayCountByPlan(planDaysCounts)
+    }
+
+    fetchData()
+  }, [])
+
+  const handleGenerateWorkout = async (prefs: RecommendationPreferences) => {
+    setIsGenerating(true)
+    try {
+      const workout = generateWorkoutRecommendation(prefs, exercises, fitnessProfile, muscleProgress)
+      setGeneratedWorkout(workout)
+    } catch (error) {
+      console.error('[v0] Error generating workout:', error)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Workouts</h1>
-          <p className="mt-1 text-muted-foreground">
-            Build plans and browse exercises
-          </p>
+          <p className="mt-1 text-muted-foreground">Build plans, get recommendations, and browse exercises</p>
         </div>
         <Button asChild size="lg">
           <Link href="/app/workouts/plans/new">
@@ -62,9 +85,12 @@ export default async function WorkoutsPage() {
         </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="plans" className="space-y-4">
+      <Tabs defaultValue="train-today" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="train-today" className="gap-2">
+            <Zap className="h-4 w-4" />
+            Train Today
+          </TabsTrigger>
           <TabsTrigger value="plans" className="gap-2">
             <Dumbbell className="h-4 w-4" />
             Plans
@@ -75,25 +101,45 @@ export default async function WorkoutsPage() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Train Today Tab */}
+        <TabsContent value="train-today" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <TrainTodayPanel
+                defaultEquipment={fitnessProfile?.available_equipment || ['bodyweight']}
+                onGenerate={handleGenerateWorkout}
+                isLoading={isGenerating}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <Card className="p-6">
+                {generatedWorkout ? (
+                  <GeneratedWorkoutDisplay workout={generatedWorkout} />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Zap className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                    <h3 className="text-lg font-semibold text-foreground">No workout generated yet</h3>
+                    <p className="mt-1 text-muted-foreground">Select your preferences and click Generate to create a personalized workout</p>
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
         {/* Plans Tab */}
         <TabsContent value="plans" className="space-y-4">
           {plans.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {plans.map((plan) => (
-                <PlanCard
-                  key={plan.id}
-                  plan={plan}
-                  daysCount={dayCountByPlan[plan.id] || 0}
-                />
+                <PlanCard key={plan.id} plan={plan} daysCount={dayCountByPlan[plan.id] || 0} />
               ))}
             </div>
           ) : (
             <Card className="p-12 text-center">
               <Dumbbell className="mx-auto h-12 w-12 text-muted-foreground/50" />
               <h3 className="mt-4 text-lg font-semibold">No plans yet</h3>
-              <p className="mt-1 text-muted-foreground">
-                Create your first workout plan to get started
-              </p>
+              <p className="mt-1 text-muted-foreground">Create your first workout plan to get started</p>
               <Button asChild className="mt-4">
                 <Link href="/app/workouts/plans/new">Create Plan</Link>
               </Button>
