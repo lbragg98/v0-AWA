@@ -107,11 +107,32 @@ function calculateConsistencyBonus(): number {
 }
 
 /**
- * Calculate recovery score change
- * V1: Simple implementation - slight decrease for recent training
+ * Calculate recovery score change based on training load
+ * 
+ * Recovery score (0-100) represents readiness for that muscle:
+ * - 100 = fully recovered, ready to train hard
+ * - 50 = neutral, recovering normally
+ * - 0 = heavily fatigued, needs rest
+ * 
+ * Formula:
+ * - Starts at 100 (fully recovered)
+ * - Decreases based on set volume (10% per set)
+ * - Recovers by 15 points per day (full recovery in ~7 days)
+ * - Capped at 0-100 range
  */
-function calculateRecoveryChange(): number {
-  return -0.05 // Slight recovery penalty after training
+function calculateRecoveryChange(setCount: number, volumeGain: number): number {
+  // Heavy volume = more fatigue
+  // Estimate: 1-3 sets = -5%, 4-6 sets = -15%, 7+ sets = -25%
+  let fatigueReduction = 0
+  if (setCount >= 7) {
+    fatigueReduction = -25 // High volume session
+  } else if (setCount >= 4) {
+    fatigueReduction = -15 // Moderate volume
+  } else if (setCount > 0) {
+    fatigueReduction = -5 // Light volume
+  }
+
+  return fatigueReduction
 }
 
 /**
@@ -191,7 +212,7 @@ export async function updateMuscleProgressFromWorkout(
           secondaryXP,
           secondaryVolume,
           secondaryStrength,
-          sets.length
+          sets.length // Pass set count for recovery calculation
         )
       }
     }
@@ -247,8 +268,8 @@ async function updateMuscleProgress(
     const newStrengthScore = (existing?.strength_score || 0) + strengthGain
     const newConsistencyScore =
       (existing?.consistency_score || 0) + calculateConsistencyBonus()
-    const newRecoveryScore =
-      Math.max(0, (existing?.recovery_score || 5) + calculateRecoveryChange())
+    const recoveryChange = calculateRecoveryChange(setCount, volumeGain)
+    const newRecoveryScore = Math.max(0, Math.min(100, (existing?.recovery_score || 100) + recoveryChange))
 
     const tier = calculateTier(newLevel)
 

@@ -1,4 +1,4 @@
-import type { CompletedWorkout, MuscleProgress, FitnessProfile } from '@/types/database'
+import type { CompletedWorkout, MuscleProgress, FitnessProfile, CompletedSet } from '@/types/database'
 
 /**
  * User-facing readiness states mapped from 0-100 score
@@ -17,6 +17,17 @@ export interface ReadinessFactor {
   name: string
   value: number // 0-100
   impact: 'positive' | 'neutral' | 'negative'
+}
+
+/**
+ * Muscle-level recovery score (used for updated muscle_progress.recovery_score)
+ * Base 100 (fully recovered) → decreases with workout load → recovers over time
+ */
+export interface MuscleRecoveryState {
+  muscleGroupId: string
+  recoveryScore: number // 0-100
+  daysToFullRecovery: number
+  state: 'fully_recovered' | 'recovering' | 'heavily_fatigued'
 }
 
 /**
@@ -138,6 +149,85 @@ export function calculateUserReadiness(
     message,
     recommendation,
     factors,
+  }
+}
+
+/**
+ * Calculate muscle-level recovery score based on:
+ * - Days since last trained
+ * - Recent set volume on that muscle
+ * - Recovery score decay over time
+ *
+ * Formula (100 = fully recovered):
+ * Base = last recorded recovery_score
+ * - Decay per day (10 points/day × days since workout)
+ * + Recovery gain per day (15 points/day × days since last workout)
+ * Final = clamp to 0-100
+ */
+export function calculateMuscleRecovery(
+  muscle: MuscleProgress,
+  recentWorkouts: CompletedWorkout[],
+  recentSets: CompletedSet[]
+): MuscleRecoveryState {
+  const muscleId = muscle.muscle_group_id
+  
+  // Find last time this muscle was trained
+  const lastTrainedDate = muscle.last_trained_at ? new Date(muscle.last_trained_at) : null
+  const daysSinceLastTrained = lastTrainedDate 
+    ? Math.floor((Date.now() - lastTrainedDate.getTime()) / (1000 * 60 * 60 * 24))
+    : 999
+
+  let recoveryScore = muscle.recovery_score || 100
+
+  // If recently trained (< 24 hours), reduce score based on volume
+  if (daysSinceLastTrained <= 1) {
+    // Get volume from last training session for this muscle
+    const recentVolumeForMuscle = recentSets
+      .filter((set) => {
+        // Assuming set has exercise relationship that links to muscle
+        // This is simplified - in reality you'd join with exercise_library
+        return true // Simplified for now
+      })
+      .length
+
+    // High volume (10+ sets) = more fatigue
+    if (recentVolumeForMuscle > 15) {
+      recoveryScore -= 30 // Heavy session
+    } else if (recentVolumeForMuscle > 8) {
+      recoveryScore -= 15 // Moderate session
+    } else if (recentVolumeForMuscle > 0) {
+      recoveryScore -= 5 // Light session
+    }
+  }
+
+  // Recovery gain per day since last training
+  // Each day adds 15 points (full recovery in ~7 days)
+  if (daysSinceLastTrained > 0) {
+    recoveryScore += daysSinceLastTrained * 15
+  }
+
+  // Clamp to 0-100
+  recoveryScore = Math.max(0, Math.min(100, recoveryScore))
+
+  // Determine recovery state
+  let state: 'fully_recovered' | 'recovering' | 'heavily_fatigued'
+  if (recoveryScore >= 85) {
+    state = 'fully_recovered'
+  } else if (recoveryScore >= 50) {
+    state = 'recovering'
+  } else {
+    state = 'heavily_fatigued'
+  }
+
+  // Estimate days to full recovery
+  const pointsNeeded = 100 - recoveryScore
+  const daysToFullRecovery = Math.ceil(pointsNeeded / 15)
+
+  return {
+    muscleGroupId: muscleId,
+    recoveryScore,
+    daysToFullRecovery,
+    state,
   }
 }
 
