@@ -77,11 +77,11 @@ export function PlanCard({ plan, daysCount = 0 }: PlanCardProps) {
         </div>
 
         <div className="pt-2 flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1" asChild>
-            <Link href={`/app/workouts/plans/${plan.id}`}>View</Link>
-          </Button>
           <Button size="sm" className="flex-1" asChild>
-            <Link href={`/app/workouts/plans/${plan.id}/edit`}>Edit</Link>
+            <Link href={`/app/workouts/plans/${plan.id}/start`}>Start Workout</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/app/workouts/plans/${plan.id}`}>View</Link>
           </Button>
         </div>
       </CardContent>

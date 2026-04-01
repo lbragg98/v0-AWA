@@ -6,52 +6,72 @@ import { createClient } from '@/lib/supabase/server'
  * Used in layout components to protect routes
  */
 export async function verifyAuth(requireOnboarded: boolean = false) {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    if (!supabase) {
+      console.error('[v0] Supabase client is undefined')
+      redirect('/auth/login')
+    }
 
-  if (!user) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      redirect('/auth/login')
+    }
+
+    if (requireOnboarded) {
+      const { data: fitnessProfile, error } = await supabase
+        .from('fitness_profiles')
+        .select('onboarding_completed')
+        .eq('user_id', user.id)
+        .single()
+
+      if (error || !fitnessProfile?.onboarding_completed) {
+        redirect('/onboarding')
+      }
+    }
+
+    return user
+  } catch (error) {
+    console.error('[v0] Error in verifyAuth:', error)
     redirect('/auth/login')
   }
+}
 
-  if (requireOnboarded) {
-    const { data: fitnessProfile, error } = await supabase
+/**
+ * Checks if user exists and has completed onboarding
+ * Returns null if not authenticated or if there's an error
+ */
+export async function getAuthStatus() {
+  try {
+    const supabase = await createClient()
+
+    if (!supabase) {
+      console.error('[v0] Supabase client is undefined')
+      return null
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return null
+
+    const { data: fitnessProfile } = await supabase
       .from('fitness_profiles')
       .select('onboarding_completed')
       .eq('user_id', user.id)
       .single()
 
-    if (error || !fitnessProfile?.onboarding_completed) {
-      redirect('/onboarding')
+    return {
+      user,
+      hasCompletedOnboarding: fitnessProfile?.onboarding_completed === true,
     }
-  }
-
-  return user
-}
-
-/**
- * Checks if user exists and has completed onboarding
- * Returns null if not authenticated
- */
-export async function getAuthStatus() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return null
-
-  const { data: fitnessProfile } = await supabase
-    .from('fitness_profiles')
-    .select('onboarding_completed')
-    .eq('user_id', user.id)
-    .single()
-
-  return {
-    user,
-    hasCompletedOnboarding: fitnessProfile?.onboarding_completed === true,
+  } catch (error) {
+    console.error('[v0] Error in getAuthStatus:', error)
+    return null
   }
 }
