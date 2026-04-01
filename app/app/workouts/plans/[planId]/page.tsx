@@ -193,17 +193,23 @@ export default function PlanDetailPage({ params }: { params: { planId: string } 
               </CardHeader>
               <CardContent className="space-y-2">
                 {workoutDays.map((day) => (
-                  <div key={day.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{day.name}</p>
-                      {day.target_muscles && day.target_muscles.length > 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          Focus: {day.target_muscles.join(', ')}
-                        </p>
-                      )}
+                  <Link
+                    key={day.id}
+                    href={`/app/workouts/plans/${params.planId}/days/${day.id}`}
+                    className="block"
+                  >
+                    <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-foreground/30 transition-colors cursor-pointer">
+                      <div className="flex-1">
+                        <p className="font-medium">{day.name}</p>
+                        {day.target_muscles && day.target_muscles.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            Focus: {(day.target_muscles as string[]).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant="outline">{day.estimated_duration || '—'} min</Badge>
                     </div>
-                    <Badge variant="outline">{day.estimated_duration || '—'} min</Badge>
-                  </div>
+                  </Link>
                 ))}
               </CardContent>
             </Card>
