@@ -4,7 +4,10 @@ import { GoalsCard } from '@/components/dashboard/goals-card'
 import { RecentWorkoutsCard } from '@/components/dashboard/recent-workouts-card'
 import { ProfileSummaryCard } from '@/components/dashboard/profile-summary-card'
 import { QuickStartCard } from '@/components/dashboard/quick-start-card'
-import type { Profile, FitnessProfile, UserStreak, Goal, CompletedWorkout, DashboardStats } from '@/types/database'
+import { PersonalRecordsCard } from '@/components/dashboard/personal-records-card'
+import { RecoveryReadinessCard } from '@/components/dashboard/recovery-readiness-card'
+import { TodaysWorkoutCard } from '@/components/dashboard/todays-workout-card'
+import type { Profile, FitnessProfile, UserStreak, Goal, CompletedWorkout, PersonalRecord, DashboardStats } from '@/types/database'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -22,6 +25,7 @@ export default async function DashboardPage() {
     goalsResult,
     workoutsResult,
     weeklyWorkoutsResult,
+    personalRecordsResult,
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -55,6 +59,13 @@ export default async function DashboardPage() {
       .select('id, total_volume')
       .eq('user_id', user.id)
       .gte('started_at', getStartOfWeek().toISOString()),
+    // Get personal records
+    supabase
+      .from('personal_records')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('achieved_at', { ascending: false })
+      .limit(10),
   ])
 
   const profile = profileResult.data as Profile | null
@@ -63,6 +74,7 @@ export default async function DashboardPage() {
   const goals = (goalsResult.data || []) as Goal[]
   const workouts = (workoutsResult.data || []) as CompletedWorkout[]
   const weeklyWorkouts = weeklyWorkoutsResult.data || []
+  const personalRecords = (personalRecordsResult.data || []) as PersonalRecord[]
 
   // Calculate stats
   const stats: DashboardStats = {
@@ -93,14 +105,19 @@ export default async function DashboardPage() {
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column - Workouts */}
+        {/* Left Column - Workouts & Goals */}
         <div className="lg:col-span-2 space-y-6">
           <RecentWorkoutsCard workouts={workouts} />
-          <GoalsCard goals={goals} />
+          <div className="grid gap-6 md:grid-cols-2">
+            <GoalsCard goals={goals} />
+            <PersonalRecordsCard personalRecords={personalRecords} />
+          </div>
         </div>
 
-        {/* Right Column - Profile & Quick Start */}
+        {/* Right Column - Profile, Recovery, Today's Workout */}
         <div className="space-y-6">
+          <TodaysWorkoutCard />
+          <RecoveryReadinessCard />
           <QuickStartCard />
           <ProfileSummaryCard profile={profile} fitnessProfile={fitnessProfile} />
         </div>
@@ -130,3 +147,4 @@ function getGreetingMessage(stats: DashboardStats): string {
   }
   return 'Ready to forge your strength today?'
 }
+

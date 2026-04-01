@@ -123,7 +123,20 @@ export interface UserAchievement {
   achievement?: Achievement
 }
 
-// Dashboard summary types
+export interface PersonalRecord {
+  id: string
+  user_id: string
+  exercise_id: string
+  exercise_name?: string
+  weight: number
+  weight_unit: 'kg' | 'lbs'
+  reps: number
+  estimated_1rm: number | null
+  achieved_at: string
+  completed_set_id: string | null
+  created_at: string
+}
+
 export interface DashboardStats {
   workoutsThisWeek: number
   totalWorkouts: number
