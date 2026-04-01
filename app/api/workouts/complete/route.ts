@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { processWorkoutCompletion } from '@/app/actions/workout-progress'
+import type { CompletedSet } from '@/types/workouts'
 
 export async function POST(request: Request) {
   try {
@@ -65,6 +67,7 @@ export async function POST(request: Request) {
     }
 
     // Save completed sets
+    const savedSets: CompletedSet[] = []
     if (completedSets && completedSets.length > 0) {
       const setsToInsert = completedSets.flatMap((exerciseGroup: any) =>
         exerciseGroup.sets.map((set: any) => ({
@@ -81,14 +84,36 @@ export async function POST(request: Request) {
         }))
       )
 
-      const { error: setsError } = await supabase
+      const { data: insertedSets, error: setsError } = await supabase
         .from('completed_sets')
         .insert(setsToInsert)
+        .select()
 
       if (setsError) {
         console.error('Error saving completed sets:', setsError)
         // Don't fail the entire operation if sets fail
+      } else if (insertedSets) {
+        savedSets.push(...insertedSets.map((set: any) => ({
+          id: set.id,
+          exerciseId: set.exercise_id,
+          weight: set.weight,
+          weightUnit: set.weight_unit,
+          reps: set.reps,
+        })))
       }
+    }
+
+    // Process workout completion (update streaks, detect PRs, etc.)
+    try {
+      await processWorkoutCompletion({
+        userId: user.id,
+        completedWorkoutId: completedWorkout.id,
+        sets: savedSets,
+        workoutDate: new Date(completedAt),
+      })
+    } catch (progressError) {
+      console.error('Error processing workout progress:', progressError)
+      // Don't fail the response if progress processing fails
     }
 
     return NextResponse.json({

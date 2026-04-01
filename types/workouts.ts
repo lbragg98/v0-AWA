@@ -31,3 +31,11 @@ export interface WorkoutExerciseForm {
   notes?: string
   exerciseType: 'warmup' | 'main' | 'accessory' | 'finisher' | 'cooldown'
 }
+
+export interface CompletedSet {
+  id?: string
+  exerciseId: string
+  weight: number
+  weightUnit?: 'kg' | 'lbs'
+  reps: number
+}

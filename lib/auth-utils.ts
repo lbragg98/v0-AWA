@@ -16,9 +16,10 @@ export async function verifyAuth(requireOnboarded: boolean = false) {
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
+    if (userError || !user) {
       redirect('/auth/login')
     }
 
@@ -56,9 +57,12 @@ export async function getAuthStatus() {
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser()
 
-    if (!user) return null
+    if (userError || !user) {
+      return null
+    }
 
     const { data: fitnessProfile } = await supabase
       .from('fitness_profiles')
