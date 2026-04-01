@@ -3,8 +3,11 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { TIER_CONFIG, getXPProgressInTier, getNextTier, type MuscleTier } from '@/lib/muscle-colors'
-import { Flame, Zap, Target, Heart, Calendar } from 'lucide-react'
+import { analyzeMuscleState, getRecoveryReadiness } from '@/lib/muscle-intelligence'
+import { Flame, Zap, Target, Heart, Calendar, Lightbulb, AlertCircle, CheckCircle2 } from 'lucide-react'
+import Link from 'next/link'
 
 interface MuscleProgress {
   id: string
@@ -25,15 +28,19 @@ interface MuscleDetailDrawerProps {
   muscle: MuscleProgress | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  allMuscles?: MuscleProgress[]
 }
 
-export function MuscleDetailDrawer({ muscle, open, onOpenChange }: MuscleDetailDrawerProps) {
+export function MuscleDetailDrawer({ muscle, open, onOpenChange, allMuscles = [] }: MuscleDetailDrawerProps) {
   if (!muscle) return null
 
   const tierConfig = TIER_CONFIG[muscle.tier]
   const progress = getXPProgressInTier(muscle.xp, muscle.tier)
   const nextTier = getNextTier(muscle.tier)
   const nextTierConfig = nextTier ? TIER_CONFIG[nextTier] : null
+  
+  const analysis = analyzeMuscleState(muscle, allMuscles)
+  const recoveryReadiness = getRecoveryReadiness(muscle)
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Never'
@@ -46,6 +53,12 @@ export function MuscleDetailDrawer({ muscle, open, onOpenChange }: MuscleDetailD
     if (diffDays < 7) return `${diffDays} days ago`
     return date.toLocaleDateString()
   }
+
+  const stateIcon = {
+    undertrained: <AlertCircle className="w-4 h-4 text-yellow-500" />,
+    balanced: <CheckCircle2 className="w-4 h-4 text-green-500" />,
+    fatigued: <Flame className="w-4 h-4 text-red-500" />,
+  }[analysis.state]
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -78,6 +91,19 @@ export function MuscleDetailDrawer({ muscle, open, onOpenChange }: MuscleDetailD
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Muscle Status & Recommendation */}
+          <div className="space-y-3 p-4 rounded-lg bg-muted/50 border border-border">
+            <div className="flex items-center gap-2">
+              {stateIcon}
+              <span className="text-sm font-semibold capitalize">{analysis.state}</span>
+            </div>
+            <p className="text-sm text-muted-foreground">{analysis.recommendation}</p>
+            <div className="pt-2 flex items-center gap-2 text-xs">
+              <Lightbulb className="w-3 h-3 text-amber-500" />
+              <span className="text-muted-foreground">Ready: {Math.round(recoveryReadiness * 100)}%</span>
+            </div>
+          </div>
+
           {/* XP Progress */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -138,6 +164,15 @@ export function MuscleDetailDrawer({ muscle, open, onOpenChange }: MuscleDetailD
               <p className="text-sm text-muted-foreground">{formatDate(muscle.lastTrainedAt)}</p>
             </div>
           </div>
+
+          {/* Action: Train This Muscle */}
+          {analysis.state === 'undertrained' && analysis.recoveryStatus !== 'fatigued' && (
+            <Button asChild className="w-full" size="sm">
+              <Link href={`/app/workouts?focus=${muscle.muscleName.toLowerCase()}`}>
+                Train {muscle.displayName}
+              </Link>
+            </Button>
+          )}
 
           {/* Tier Progression */}
           <div className="space-y-3">

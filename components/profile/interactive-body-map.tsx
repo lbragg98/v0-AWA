@@ -321,6 +321,7 @@ export function InteractiveBodyMap({ muscleProgress }: InteractiveBodyMapProps) 
         muscle={selectedMuscle}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+        allMuscles={muscleProgress}
       />
     </>
   )

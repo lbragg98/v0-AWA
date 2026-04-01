@@ -1,9 +1,9 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Target, Zap } from 'lucide-react'
+import { Clock, Target, Zap, Lightbulb } from 'lucide-react'
 import type { GeneratedWorkout, GeneratedExercise } from '@/lib/workout-recommendation'
 
 interface GeneratedWorkoutDisplayProps {
@@ -30,6 +30,32 @@ export function GeneratedWorkoutDisplay({ workout }: GeneratedWorkoutDisplayProp
           </div>
         </div>
       </Card>
+
+      {/* Reasoning Section */}
+      {workout.reasoning && (
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              Why This Workout
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Muscles:</span> {workout.reasoning.selectedMuscles}
+            </p>
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Recovery:</span> {workout.reasoning.recoveryStatus}
+            </p>
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Equipment:</span> {workout.reasoning.equipmentFit}
+            </p>
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Duration:</span> {workout.reasoning.timefit}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Warmup Section */}
       {workout.warmup.length > 0 && (

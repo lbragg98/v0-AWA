@@ -1,6 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Zap, Flame, TrendingUp, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
 import type { MuscleProgress, CompletedWorkout } from '@/types/database'
 
 interface InsightsCardsProps {
@@ -33,6 +35,8 @@ export function InsightsCards({ muscleProgress, workouts }: InsightsCardsProps) 
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const monthWorkouts = workouts.filter((w) => new Date(w.started_at) > thirtyDaysAgo).length
+
+  const weakestMuscleName = weakestMuscle?.muscle_group?.slug?.toLowerCase() || ''
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -72,17 +76,19 @@ export function InsightsCards({ muscleProgress, workouts }: InsightsCardsProps) 
             Most Improved
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-lg font-bold text-foreground truncate">
-            {mostImprovedMuscle?.muscle_group?.display_name || '—'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            +{mostImprovedMuscle?.xp || 0} XP
-          </p>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-lg font-bold text-foreground truncate">
+              {mostImprovedMuscle?.muscle_group?.display_name || '—'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              +{mostImprovedMuscle?.xp || 0} XP
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Needs Attention */}
+      {/* Needs Attention - with action button */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -90,13 +96,27 @@ export function InsightsCards({ muscleProgress, workouts }: InsightsCardsProps) 
             Needs Work
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-lg font-bold text-foreground truncate">
-            {weakestMuscle?.muscle_group?.display_name || '—'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Level {weakestMuscle?.level || 0}
-          </p>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-lg font-bold text-foreground truncate">
+              {weakestMuscle?.muscle_group?.display_name || '—'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Level {weakestMuscle?.level || 0}
+            </p>
+          </div>
+          {weakestMuscleName && (
+            <Button 
+              asChild 
+              size="sm" 
+              variant="outline"
+              className="w-full"
+            >
+              <Link href={`/app/workouts?focus=${weakestMuscleName}`}>
+                Train This
+              </Link>
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
