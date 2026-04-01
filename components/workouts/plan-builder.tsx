@@ -15,12 +15,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ExerciseLibraryBrowser } from './exercise-library-browser'
-import { ExerciseCard } from './exercise-card'
-import { ArrowLeft, Save, Plus, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import Link from 'next/link'
-import type { ExerciseLibrary, WorkoutDay } from '@/types/database'
-import type { CreateWorkoutPlanForm, WorkoutExerciseForm } from '@/types/workouts'
+import type { ExerciseLibrary } from '@/types/database'
 
 interface PlanBuilderProps {
   exercises: ExerciseLibrary[]
@@ -31,121 +29,84 @@ interface PlanBuilderProps {
 export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanBuilderProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   
   // Plan basic info
-  const [planForm, setPlanForm] = useState<CreateWorkoutPlanForm>({
+  const [planForm, setPlanForm] = useState({
     name: initialPlan?.name || '',
     goal: initialPlan?.goal || 'muscle_gain',
-    trainingFrequency: initialPlan?.days_per_week || 3,
-    experienceLevel: initialPlan?.experience_level || 'beginner',
   })
 
-  // Workout days
-  const [workoutDays, setWorkoutDays] = useState<Array<{
-    id: string
-    dayNumber: number
-    name: string
-    targetMuscles: string[]
-    exercises: WorkoutExerciseForm[]
-  }>>(() => {
-    if (initialPlan?.days) {
-      return initialPlan.days.map((day: any, idx: number) => ({
-        id: day.id || `day-${idx}`,
-        dayNumber: day.day_number,
-        name: day.name,
-        targetMuscles: day.target_muscles || [],
-        exercises: day.exercises || [],
-      }))
-    }
-    // Initialize empty days based on training frequency
-    return Array.from({ length: initialPlan?.days_per_week || 3 }, (_, i) => ({
-      id: `day-${i}`,
-      dayNumber: i + 1,
-      name: `Day ${i + 1}`,
-      targetMuscles: [],
-      exercises: [],
-    }))
+  // Workout day info
+  const [workoutDay, setWorkoutDay] = useState({
+    label: 'Day 1',
+    focus: 'Upper Body',
+    estimated_minutes: 60,
+    smart_goal_text: 'Complete all sets with good form',
   })
 
-  const [selectedDayIdx, setSelectedDayIdx] = useState(0)
-  const [showExercisePicker, setShowExercisePicker] = useState(false)
+  // Validation
+  const isStep0Valid = planForm.name.trim() !== ''
+  const isStep1Valid = workoutDay.label.trim() !== '' && workoutDay.focus.trim() !== ''
 
   // Step 1: Basic Info
   const handleBasicInfoNext = () => {
-    if (!planForm.name) {
-      alert('Please enter a plan name')
+    setError(null)
+    if (!isStep0Valid) {
+      setError('Please enter a plan name')
       return
     }
     setCurrentStep(1)
   }
 
-  // Step 2: Setup Days
-  const handleDaysChange = (index: number, field: string, value: any) => {
-    const updated = [...workoutDays]
-    updated[index] = { ...updated[index], [field]: value }
-    setWorkoutDays(updated)
-  }
-
-  const handleAddExerciseToDay = (exercise: ExerciseLibrary) => {
-    const updated = [...workoutDays]
-    updated[selectedDayIdx].exercises.push({
-      exerciseId: exercise.id,
-      sets: 3,
-      repsMin: 8,
-      repsMax: 12,
-      restSeconds: 90,
-      exerciseType: 'main',
-    })
-    setWorkoutDays(updated)
-    setShowExercisePicker(false)
-  }
-
-  const handleRemoveExercise = (dayIdx: number, exIdx: number) => {
-    const updated = [...workoutDays]
-    updated[dayIdx].exercises.splice(exIdx, 1)
-    setWorkoutDays(updated)
-  }
-
-  const handleUpdateExercise = (dayIdx: number, exIdx: number, field: string, value: any) => {
-    const updated = [...workoutDays]
-    updated[dayIdx].exercises[exIdx] = {
-      ...updated[dayIdx].exercises[exIdx],
-      [field]: value,
-    }
-    setWorkoutDays(updated)
-  }
-
   // Save plan
   const handleSavePlan = async () => {
+    setError(null)
     setIsLoading(true)
     try {
-      const response = await fetch(isEditing ? `/api/workouts/plans/${initialPlan.id}` : '/api/workouts/plans', {
-        method: isEditing ? 'PUT' : 'POST',
+      if (!isStep1Valid) {
+        throw new Error('Please complete all required fields')
+      }
+
+      const response = await fetch('/api/workouts/plans', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          plan: planForm,
-          workoutDays,
+          plan: {
+            name: planForm.name.trim(),
+            goal: planForm.goal,
+            trainingFrequency: 1,
+            experienceLevel: 'beginner',
+          },
+          workoutDays: [
+            {
+              dayNumber: 1,
+              name: workoutDay.label.trim(),
+              targetMuscles: workoutDay.focus.trim() ? [workoutDay.focus.trim()] : [],
+              exercises: [],
+              estimated_minutes: workoutDay.estimated_minutes,
+              smart_goal_text: workoutDay.smart_goal_text.trim(),
+            },
+          ],
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to save plan')
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create plan')
       }
 
       const { id } = await response.json()
-      router.push(`/app/workouts`)
+      router.push(`/app/workouts/plans/${id}`)
       router.refresh()
-    } catch (error) {
-      console.error('Error saving plan:', error)
-      alert('Failed to save plan')
+    } catch (err) {
+      console.error('[v0] Error saving plan:', err)
+      setError(err instanceof Error ? err.message : 'Failed to create plan')
     } finally {
       setIsLoading(false)
     }
   }
-
-  const currentDay = workoutDays[selectedDayIdx]
-  const selectedExerciseIds = currentDay?.exercises.map((ex) => ex.exerciseId) || []
 
   return (
     <div className="space-y-6">
@@ -157,249 +118,155 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
             Back
           </Link>
         </Button>
-        <h1 className="text-2xl font-bold">{isEditing ? 'Edit Plan' : 'New Plan'}</h1>
+        <h1 className="text-2xl font-bold">Create Workout Plan</h1>
         <div className="w-20" />
       </div>
 
-      {/* Step Indicator */}
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Step Tabs */}
       <Tabs value={currentStep.toString()} onValueChange={(v) => setCurrentStep(parseInt(v))}>
         <TabsList className="w-full">
           <TabsTrigger value="0" className="flex-1">
             Plan Details
           </TabsTrigger>
           <TabsTrigger value="1" className="flex-1">
-            Workout Days
+            First Workout
           </TabsTrigger>
         </TabsList>
 
-        {/* Step 0: Basic Info */}
+        {/* Step 0: Plan Details */}
         <TabsContent value="0" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Plan Details</CardTitle>
               <CardDescription>
-                Set up the basic information for your workout plan
+                Create your basic workout plan with a name and goal
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Plan Name</Label>
+                <Label htmlFor="name">Plan Name *</Label>
                 <Input
                   id="name"
                   placeholder="e.g., Summer Shred 2024"
                   value={planForm.name}
                   onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
                 />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="goal">Primary Goal</Label>
-                  <Select value={planForm.goal} onValueChange={(v: any) => setPlanForm({ ...planForm, goal: v })}>
-                    <SelectTrigger id="goal">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="fat_loss">Fat Loss</SelectItem>
-                      <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
-                      <SelectItem value="strength">Strength</SelectItem>
-                      <SelectItem value="endurance">Endurance</SelectItem>
-                      <SelectItem value="general_fitness">General Fitness</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="frequency">Training Days Per Week</Label>
-                  <Select value={planForm.trainingFrequency.toString()} onValueChange={(v) => {
-                    const freq = parseInt(v)
-                    setPlanForm({ ...planForm, trainingFrequency: freq })
-                    // Add/remove days as needed
-                    const currentDays = [...workoutDays].slice(0, freq)
-                    const newDays = Array.from({ length: freq }, (_, i) => 
-                      currentDays[i] || {
-                        id: `day-${i}`,
-                        dayNumber: i + 1,
-                        name: `Day ${i + 1}`,
-                        targetMuscles: [],
-                        exercises: [],
-                      }
-                    )
-                    setWorkoutDays(newDays)
-                  }}>
-                    <SelectTrigger id="frequency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 7 }, (_, i) => (
-                        <SelectItem key={i + 1} value={(i + 1).toString()}>
-                          {i + 1} days/week
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!isStep0Valid && planForm.name === '' && (
+                  <p className="text-xs text-destructive">Plan name is required</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="experience">Experience Level</Label>
-                <Select value={planForm.experienceLevel} onValueChange={(v: any) => setPlanForm({ ...planForm, experienceLevel: v })}>
-                  <SelectTrigger id="experience">
+                <Label htmlFor="goal">Primary Goal *</Label>
+                <Select value={planForm.goal} onValueChange={(v: any) => setPlanForm({ ...planForm, goal: v })}>
+                  <SelectTrigger id="goal">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="beginner">Beginner</SelectItem>
-                    <SelectItem value="intermediate">Intermediate</SelectItem>
-                    <SelectItem value="advanced">Advanced</SelectItem>
+                    <SelectItem value="fat_loss">Fat Loss</SelectItem>
+                    <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
+                    <SelectItem value="strength">Strength</SelectItem>
+                    <SelectItem value="endurance">Endurance</SelectItem>
+                    <SelectItem value="general_fitness">General Fitness</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <Button className="w-full mt-6" onClick={handleBasicInfoNext}>
-                Continue to Workout Days
+              <Button className="w-full mt-6" onClick={handleBasicInfoNext} disabled={!isStep0Valid}>
+                Continue to First Workout
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Step 1: Workout Days */}
+        {/* Step 1: Workout Day */}
         <TabsContent value="1" className="space-y-4">
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Days List */}
-            <div className="space-y-2">
-              {workoutDays.map((day, idx) => (
-                <Button
-                  key={day.id}
-                  variant={selectedDayIdx === idx ? 'default' : 'outline'}
-                  className="w-full justify-start"
-                  onClick={() => setSelectedDayIdx(idx)}
-                >
-                  {day.name}
-                  <span className="ml-auto text-xs opacity-60">
-                    {day.exercises.length} ex
-                  </span>
-                </Button>
-              ))}
-            </div>
-
-            {/* Day Details */}
-            {currentDay && (
-              <div className="lg:col-span-2 space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{currentDay.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`day-name-${selectedDayIdx}`}>Day Name</Label>
-                      <Input
-                        id={`day-name-${selectedDayIdx}`}
-                        value={currentDay.name}
-                        onChange={(e) => handleDaysChange(selectedDayIdx, 'name', e.target.value)}
-                      />
-                    </div>
-
-                    {/* Exercises */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label>Exercises ({currentDay.exercises.length})</Label>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setShowExercisePicker(!showExercisePicker)}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add
-                        </Button>
-                      </div>
-
-                      {showExercisePicker && (
-                        <Card className="p-4 border-dashed">
-                          <ExerciseLibraryBrowser
-                            exercises={exercises}
-                            selectedExercises={selectedExerciseIds}
-                            onSelect={handleAddExerciseToDay}
-                            selectable
-                          />
-                        </Card>
-                      )}
-
-                      {currentDay.exercises.length > 0 ? (
-                        <div className="space-y-2">
-                          {currentDay.exercises.map((ex, exIdx) => {
-                            const exercise = exercises.find((e) => e.id === ex.exerciseId)
-                            return (
-                              <Card key={exIdx} className="p-3">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <p className="font-medium text-sm">{exercise?.name}</p>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleRemoveExercise(selectedDayIdx, exIdx)}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div>
-                                      <Label>Sets</Label>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        value={ex.sets}
-                                        onChange={(e) =>
-                                          handleUpdateExercise(selectedDayIdx, exIdx, 'sets', parseInt(e.target.value))
-                                        }
-                                        className="h-8 text-xs"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label>Reps</Label>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        value={`${ex.repsMin}-${ex.repsMax}`}
-                                        onChange={(e) => {
-                                          const [min, max] = e.target.value.split('-').map(Number)
-                                          handleUpdateExercise(selectedDayIdx, exIdx, 'repsMin', min)
-                                          handleUpdateExercise(selectedDayIdx, exIdx, 'repsMax', max)
-                                        }}
-                                        className="h-8 text-xs"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </Card>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground text-center py-4">
-                          No exercises added yet
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>First Workout Day</CardTitle>
+              <CardDescription>
+                Set up your first workout day. You can add more exercises later.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="label">Workout Label *</Label>
+                <Input
+                  id="label"
+                  placeholder="e.g., Day 1, Chest Day, Monday"
+                  value={workoutDay.label}
+                  onChange={(e) => setWorkoutDay({ ...workoutDay, label: e.target.value })}
+                />
               </div>
-            )}
-          </div>
 
-          {/* Save Button */}
+              <div className="space-y-2">
+                <Label htmlFor="focus">Muscle Focus *</Label>
+                <Input
+                  id="focus"
+                  placeholder="e.g., Upper Body, Chest & Back, Legs"
+                  value={workoutDay.focus}
+                  onChange={(e) => setWorkoutDay({ ...workoutDay, focus: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="duration">Estimated Duration (minutes)</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min="10"
+                  max="300"
+                  value={workoutDay.estimated_minutes}
+                  onChange={(e) => setWorkoutDay({ ...workoutDay, estimated_minutes: parseInt(e.target.value) || 60 })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="goal-text">Workout Goal</Label>
+                <Textarea
+                  id="goal-text"
+                  placeholder="e.g., Complete all sets with good form"
+                  value={workoutDay.smart_goal_text}
+                  onChange={(e) => setWorkoutDay({ ...workoutDay, smart_goal_text: e.target.value })}
+                  className="resize-none"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
           <div className="flex gap-2 justify-end pt-4">
             <Button
               variant="outline"
               onClick={() => setCurrentStep(0)}
+              disabled={isLoading}
             >
               Back
             </Button>
             <Button
               onClick={handleSavePlan}
-              disabled={isLoading || !planForm.name}
+              disabled={isLoading || !isStep1Valid}
             >
-              <Save className="h-4 w-4 mr-2" />
-              {isLoading ? 'Saving...' : 'Save Plan'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Create Plan
+                </>
+              )}
             </Button>
           </div>
         </TabsContent>

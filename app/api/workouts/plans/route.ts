@@ -17,6 +17,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Plan name is required' }, { status: 400 })
     }
 
+    console.log('[v0] Creating workout plan:', { planName: plan.name, goal: plan.goal })
+
     // Create workout plan
     const { data: createdPlan, error: planError } = await supabase
       .from('workout_plans')
@@ -24,10 +26,10 @@ export async function POST(request: Request) {
         {
           user_id: user.id,
           name: plan.name,
-          goal: plan.goal,
+          goal: plan.goal || 'general_fitness',
           split_type: 'custom',
-          days_per_week: plan.trainingFrequency,
-          experience_level: plan.experienceLevel,
+          days_per_week: plan.trainingFrequency || 1,
+          experience_level: plan.experienceLevel || 'beginner',
           is_active: false,
         },
       ])
@@ -35,33 +37,39 @@ export async function POST(request: Request) {
       .single()
 
     if (planError) {
-      console.error('Error creating plan:', planError)
+      console.error('[v0] Error creating plan:', planError)
       return NextResponse.json({ error: 'Failed to create plan' }, { status: 500 })
     }
 
-    // Create workout days and exercises
+    console.log('[v0] Created plan:', createdPlan.id)
+
+    // Create workout days
     for (const day of workoutDays) {
-      // Create workout day
+      console.log('[v0] Creating workout day:', { name: day.name, exercises: day.exercises?.length || 0 })
+      
       const { data: createdDay, error: dayError } = await supabase
         .from('workout_days')
         .insert([
           {
             workout_plan_id: createdPlan.id,
-            day_number: day.dayNumber,
+            day_number: day.dayNumber || 1,
             name: day.name,
-            target_muscles: day.targetMuscles,
-            estimated_duration: 60,
+            target_muscles: day.targetMuscles || [],
+            estimated_duration: day.estimated_minutes || 60,
+            smart_goal_text: day.smart_goal_text || null,
           },
         ])
         .select()
         .single()
 
       if (dayError) {
-        console.error('Error creating workout day:', dayError)
+        console.error('[v0] Error creating workout day:', dayError)
         continue
       }
 
-      // Create exercises for this day
+      console.log('[v0] Created workout day:', createdDay.id)
+
+      // Create exercises for this day if provided
       if (day.exercises && day.exercises.length > 0) {
         const exercisesToInsert = day.exercises.map((ex: any, idx: number) => ({
           workout_day_id: createdDay.id,
@@ -80,14 +88,17 @@ export async function POST(request: Request) {
           .insert(exercisesToInsert)
 
         if (exerciseError) {
-          console.error('Error creating workout exercises:', exerciseError)
+          console.error('[v0] Error creating workout exercises:', exerciseError)
+        } else {
+          console.log('[v0] Created', exercisesToInsert.length, 'exercises for day', createdDay.id)
         }
       }
     }
 
+    console.log('[v0] Plan creation complete:', createdPlan.id)
     return NextResponse.json({ id: createdPlan.id })
   } catch (error) {
-    console.error('Error in POST /api/workouts/plans:', error)
+    console.error('[v0] Error in POST /api/workouts/plans:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
