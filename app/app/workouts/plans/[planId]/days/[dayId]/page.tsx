@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -5,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
-import { ArrowLeft, Clock, Zap } from 'lucide-react'
+import { ExerciseAssignment } from '@/components/workouts/exercise-assignment'
+import { ArrowLeft, Clock, Zap, Plus } from 'lucide-react'
 import Link from 'next/link'
 import type { WorkoutDay, WorkoutExercise, ExerciseLibrary } from '@/types/database'
 
@@ -14,8 +17,10 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
   const supabase = createClient()
   const [day, setDay] = useState<WorkoutDay | null>(null)
   const [exercises, setExercises] = useState<(WorkoutExercise & { exercise?: ExerciseLibrary })[]>([])
+  const [allExercises, setAllExercises] = useState<ExerciseLibrary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showExerciseModal, setShowExerciseModal] = useState(false)
 
   useEffect(() => {
     const fetchDayDetails = async () => {
@@ -54,6 +59,16 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
 
         setDay(dayData as WorkoutDay)
 
+        // Fetch all exercises from library
+        const { data: libraryData, error: libraryError } = await supabase
+          .from('exercise_library')
+          .select('*')
+          .order('name')
+
+        if (!libraryError && libraryData) {
+          setAllExercises(libraryData as ExerciseLibrary[])
+        }
+
         // Fetch exercises for this day
         const { data: exercisesData, error: exercisesError } = await supabase
           .from('workout_exercises')
@@ -70,12 +85,12 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
         // Fetch exercise library data for each exercise
         if (exercisesData && exercisesData.length > 0) {
           const exerciseIds = (exercisesData as WorkoutExercise[]).map((e) => e.exercise_id)
-          const { data: libraryData } = await supabase
+          const { data: libraryDataForExercises } = await supabase
             .from('exercise_library')
             .select('*')
             .in('id', exerciseIds)
 
-          const libraryMap = new Map((libraryData || []).map((e) => [e.id, e]))
+          const libraryMap = new Map((libraryDataForExercises || []).map((e) => [e.id, e]))
 
           const enrichedExercises = (exercisesData as WorkoutExercise[]).map((ex) => ({
             ...ex,
@@ -96,6 +111,36 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
 
     fetchDayDetails()
   }, [params.planId, params.dayId])
+
+  const handleExercisesAdded = (newExercises: WorkoutExercise[]) => {
+    // Refresh exercises list
+    const fetchUpdatedExercises = async () => {
+      const { data: exercisesData } = await supabase
+        .from('workout_exercises')
+        .select('*')
+        .eq('workout_day_id', params.dayId)
+        .order('order_index')
+
+      if (exercisesData && exercisesData.length > 0) {
+        const exerciseIds = (exercisesData as WorkoutExercise[]).map((e) => e.exercise_id)
+        const { data: libraryData } = await supabase
+          .from('exercise_library')
+          .select('*')
+          .in('id', exerciseIds)
+
+        const libraryMap = new Map((libraryData || []).map((e) => [e.id, e]))
+
+        const enrichedExercises = (exercisesData as WorkoutExercise[]).map((ex) => ({
+          ...ex,
+          exercise: libraryMap.get(ex.exercise_id),
+        }))
+
+        setExercises(enrichedExercises)
+      }
+    }
+
+    fetchUpdatedExercises()
+  }
 
   if (isLoading) {
     return (
@@ -199,14 +244,24 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
 
       {/* Exercises */}
       <div className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Exercises</h2>
-          <p className="text-muted-foreground text-sm mt-1">All exercises for this workout day</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Exercises</h2>
+            <p className="text-muted-foreground text-sm mt-1">All exercises for this workout day</p>
+          </div>
+          <Button onClick={() => setShowExerciseModal(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Exercise
+          </Button>
         </div>
 
         {exercises.length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-muted-foreground">No exercises added to this workout day yet</p>
+            <Button onClick={() => setShowExerciseModal(true)} variant="outline" className="mt-4">
+              <Plus className="h-4 w-4 mr-2" />
+              Add First Exercise
+            </Button>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -261,6 +316,15 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
           </div>
         )}
       </div>
+
+      {/* Exercise Assignment Modal */}
+      <ExerciseAssignment
+        workoutDayId={params.dayId}
+        exercises={allExercises}
+        open={showExerciseModal}
+        onOpenChange={setShowExerciseModal}
+        onExercisesAdded={handleExercisesAdded}
+      />
 
       {/* Footer Action */}
       <div className="pt-4 border-t">

@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import type { MuscleProgress } from '@/types/database'
 
 interface StrengthTrendsProps {
@@ -55,7 +55,7 @@ export function StrengthTrends({ muscleProgress }: StrengthTrendsProps) {
           </div>
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
+          <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" />
             <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
             <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -66,24 +66,20 @@ export function StrengthTrends({ muscleProgress }: StrengthTrendsProps) {
                 borderRadius: '0.5rem',
               }}
             />
-            <Line
-              type="monotone"
+            <Legend />
+            <Bar
               dataKey="strength"
-              stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              dot={{ fill: 'hsl(var(--primary))' }}
+              fill="hsl(var(--primary))"
               name="Strength"
+              radius={[8, 8, 0, 0]}
             />
-            <Line
-              type="monotone"
+            <Bar
               dataKey="consistency"
-              stroke="hsl(var(--muted-foreground))"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ fill: 'hsl(var(--muted-foreground))' }}
+              fill="hsl(var(--muted-foreground))"
               name="Consistency"
+              radius={[8, 8, 0, 0]}
             />
-          </LineChart>
+          </BarChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
