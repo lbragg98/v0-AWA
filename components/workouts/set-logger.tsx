@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { RestTimer } from './rest-timer'
 import { ChevronDown, Check } from 'lucide-react'
 import type { WorkoutExercise, ExerciseLibrary } from '@/types/database'
 
@@ -35,11 +36,21 @@ export function SetLogger({ exercise, onComplete, isLoading = false }: SetLogger
     }))
   )
   const [expandedSet, setExpandedSet] = useState<number | null>(0)
+  const [showRestTimer, setShowRestTimer] = useState(false)
+  const [completedSetIndex, setCompletedSetIndex] = useState<number | null>(null)
 
   const handleSetChange = (setIndex: number, field: keyof CompletedSet, value: any) => {
     const newSets = [...sets]
     newSets[setIndex] = { ...newSets[setIndex], [field]: value }
     setSets(newSets)
+  }
+
+  const handleSetLogged = (setIndex: number) => {
+    // Show rest timer after set is completed (has reps logged)
+    if (sets[setIndex].reps > 0) {
+      setCompletedSetIndex(setIndex)
+      setShowRestTimer(true)
+    }
   }
 
   const exerciseName = exercise.exercise?.name || 'Exercise'
@@ -60,6 +71,26 @@ export function SetLogger({ exercise, onComplete, isLoading = false }: SetLogger
       </CardHeader>
 
       <CardContent className="space-y-3">
+        {/* Rest Timer Modal */}
+        {showRestTimer && completedSetIndex !== null && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-md">
+              <RestTimer
+                initialSeconds={sets[completedSetIndex]?.restSeconds || exercise.rest_seconds || 90}
+                onComplete={() => setShowRestTimer(false)}
+                autoStart={true}
+              />
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => setShowRestTimer(false)}
+              >
+                Start Next Set
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Sets */}
         <div className="space-y-2">
           {sets.map((set, idx) => (
@@ -168,6 +199,16 @@ export function SetLogger({ exercise, onComplete, isLoading = false }: SetLogger
                       className="mt-1"
                     />
                   </div>
+
+                  {/* Log Set Button */}
+                  <Button
+                    onClick={() => handleSetLogged(idx)}
+                    disabled={set.reps === 0}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Log Set {set.setNumber}
+                  </Button>
                 </div>
               )}
             </div>
