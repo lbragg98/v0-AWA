@@ -137,6 +137,63 @@ export interface PersonalRecord {
   created_at: string
 }
 
+export interface ExerciseLibrary {
+  id: string
+  name: string
+  slug: string
+  primary_muscle: string
+  secondary_muscles: string[] | null
+  equipment: string | null
+  difficulty: 'beginner' | 'intermediate' | 'advanced'
+  instructions: string[] | null
+  tips: string[] | null
+  is_compound: boolean
+  category: 'strength' | 'cardio' | 'flexibility' | 'warmup' | 'cooldown'
+  mechanic: 'compound' | 'isolation'
+  image_url: string | null
+  video_url: string | null
+  created_at: string
+}
+
+export interface WorkoutPlan {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  goal: 'fat_loss' | 'muscle_gain' | 'strength' | 'endurance' | 'general_fitness' | null
+  split_type: 'full_body' | 'upper_lower' | 'push_pull_legs' | 'bro_split' | 'custom'
+  days_per_week: number
+  experience_level: 'beginner' | 'intermediate' | 'advanced'
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkoutDay {
+  id: string
+  workout_plan_id: string
+  day_number: number
+  name: string
+  target_muscles: string[] | null
+  estimated_duration: number | null
+  created_at: string
+}
+
+export interface WorkoutExercise {
+  id: string
+  workout_day_id: string
+  exercise_id: string
+  order_index: number
+  sets: number
+  reps_min: number
+  reps_max: number
+  rest_seconds: number
+  notes: string | null
+  exercise_type: 'warmup' | 'main' | 'accessory' | 'finisher' | 'cooldown'
+  created_at: string
+  exercise?: ExerciseLibrary
+}
+
 export interface DashboardStats {
   workoutsThisWeek: number
   totalWorkouts: number

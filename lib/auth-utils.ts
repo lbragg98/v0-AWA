@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
  * Used in layout components to protect routes
  */
 export async function verifyAuth(requireOnboarded: boolean = false) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -36,7 +36,7 @@ export async function verifyAuth(requireOnboarded: boolean = false) {
  * Returns null if not authenticated
  */
 export async function getAuthStatus() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
