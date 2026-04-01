@@ -13,7 +13,8 @@ import { GeneratedWorkoutDisplay } from '@/components/workouts/generated-workout
 import { Plus, BookOpen, Dumbbell, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { generateWorkoutRecommendation, type RecommendationPreferences, type GeneratedWorkout } from '@/lib/workout-recommendation'
-import type { WorkoutPlan, ExerciseLibrary, FitnessProfile, MuscleProgress } from '@/types/database'
+import { calculateUserReadiness } from '@/lib/recovery-readiness'
+import type { WorkoutPlan, ExerciseLibrary, FitnessProfile, MuscleProgress, CompletedWorkout } from '@/types/database'
 
 export default function WorkoutsPage() {
   const supabase = createClient()
@@ -23,8 +24,10 @@ export default function WorkoutsPage() {
   const [dayCountByPlan, setDayCountByPlan] = useState<Record<string, number>>({})
   const [fitnessProfile, setFitnessProfile] = useState<FitnessProfile | null>(null)
   const [muscleProgress, setMuscleProgress] = useState<MuscleProgress[]>([])
+  const [workouts, setWorkouts] = useState<CompletedWorkout[]>([])
   const [generatedWorkout, setGeneratedWorkout] = useState<GeneratedWorkout | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [readinessState, setReadinessState] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,17 +38,19 @@ export default function WorkoutsPage() {
       setUser(authUser)
 
       // Fetch all data in parallel
-      const [exercisesRes, plansRes, fitnessRes, muscleRes] = await Promise.all([
+      const [exercisesRes, plansRes, fitnessRes, muscleRes, workoutsRes] = await Promise.all([
         supabase.from('exercise_library').select('*').order('name'),
         supabase.from('workout_plans').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }),
         supabase.from('fitness_profiles').select('*').eq('user_id', authUser.id).single(),
-        supabase.from('muscle_progress').select('*, muscle_group:muscle_groups(*)').eq('user_id', authUser.id'),
+        supabase.from('muscle_progress').select('*, muscle_group:muscle_groups(*)').eq('user_id', authUser.id),
+        supabase.from('completed_workouts').select('*').eq('user_id', authUser.id).order('started_at', { ascending: false }).limit(10),
       ])
 
       setExercises((exercisesRes.data || []) as ExerciseLibrary[])
       setPlans((plansRes.data || []) as WorkoutPlan[])
       setFitnessProfile((fitnessRes.data || null) as FitnessProfile | null)
       setMuscleProgress((muscleRes.data || []) as MuscleProgress[])
+      setWorkouts((workoutsRes.data || []) as CompletedWorkout[])
 
       // Count days per plan
       const planDaysCounts: Record<string, number> = {}
@@ -53,6 +58,14 @@ export default function WorkoutsPage() {
         planDaysCounts[plan.id] = Math.ceil(plan.days_per_week)
       })
       setDayCountByPlan(planDaysCounts)
+
+      // Calculate readiness
+      const readiness = calculateUserReadiness(
+        (workoutsRes.data || []) as CompletedWorkout[],
+        (muscleRes.data || []) as any[],
+        (fitnessRes.data || null) as FitnessProfile | null
+      )
+      setReadinessState(readiness.state)
     }
 
     fetchData()
@@ -109,6 +122,7 @@ export default function WorkoutsPage() {
                 defaultEquipment={fitnessProfile?.available_equipment || ['bodyweight']}
                 onGenerate={handleGenerateWorkout}
                 isLoading={isGenerating}
+                readinessState={readinessState || undefined}
               />
             </div>
             <div className="lg:col-span-2">

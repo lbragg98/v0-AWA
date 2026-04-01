@@ -7,6 +7,7 @@ import { QuickStartCard } from '@/components/dashboard/quick-start-card'
 import { PersonalRecordsCard } from '@/components/dashboard/personal-records-card'
 import { RecoveryReadinessCard } from '@/components/dashboard/recovery-readiness-card'
 import { TodaysWorkoutCard } from '@/components/dashboard/todays-workout-card'
+import { calculateUserReadiness } from '@/lib/recovery-readiness'
 import type { Profile, FitnessProfile, UserStreak, Goal, CompletedWorkout, PersonalRecord, DashboardStats } from '@/types/database'
 
 export default async function DashboardPage() {
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
     workoutsResult,
     weeklyWorkoutsResult,
     personalRecordsResult,
+    muscleProgressResult,
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -66,6 +68,11 @@ export default async function DashboardPage() {
       .eq('user_id', user.id)
       .order('achieved_at', { ascending: false })
       .limit(10),
+    // Get muscle progress for recovery calculation
+    supabase
+      .from('muscle_progress')
+      .select('*, muscle_group:muscle_groups(*)')
+      .eq('user_id', user.id),
   ])
 
   const profile = profileResult.data as Profile | null
@@ -75,6 +82,7 @@ export default async function DashboardPage() {
   const workouts = (workoutsResult.data || []) as CompletedWorkout[]
   const weeklyWorkouts = weeklyWorkoutsResult.data || []
   const personalRecords = (personalRecordsResult.data || []) as PersonalRecord[]
+  const muscleProgress = (muscleProgressResult.data || []) as any[]
 
   // Calculate stats
   const stats: DashboardStats = {
@@ -85,6 +93,9 @@ export default async function DashboardPage() {
     activeGoals: goals.filter(g => g.status === 'active').length,
     totalVolume: workouts.reduce((sum, w) => sum + (w.total_volume || 0), 0),
   }
+
+  // Calculate user readiness
+  const readiness = calculateUserReadiness(workouts, muscleProgress, fitnessProfile)
 
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
 
@@ -117,7 +128,7 @@ export default async function DashboardPage() {
         {/* Right Column - Profile, Recovery, Today's Workout */}
         <div className="space-y-6">
           <TodaysWorkoutCard />
-          <RecoveryReadinessCard />
+          <RecoveryReadinessCard readiness={readiness} />
           <QuickStartCard />
           <ProfileSummaryCard profile={profile} fitnessProfile={fitnessProfile} />
         </div>

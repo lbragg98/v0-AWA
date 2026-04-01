@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, AlertCircle } from 'lucide-react'
 import type { RecommendationPreferences } from '@/lib/workout-recommendation'
 
 const MUSCLE_GROUPS = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core']
@@ -24,14 +25,29 @@ interface TrainTodayPanelProps {
   defaultEquipment: string[]
   onGenerate: (prefs: RecommendationPreferences) => void
   isLoading: boolean
+  readinessState?: string
 }
 
-export function TrainTodayPanel({ defaultEquipment, onGenerate, isLoading }: TrainTodayPanelProps) {
+export function TrainTodayPanel({ defaultEquipment, onGenerate, isLoading, readinessState }: TrainTodayPanelProps) {
   const [targetMuscles, setTargetMuscles] = useState<string[]>(['chest'])
   const [timeAvailable, setTimeAvailable] = useState(60)
   const [energyLevel, setEnergyLevel] = useState<1 | 2 | 3 | 4 | 5>(3)
   const [desiredSplit, setDesiredSplit] = useState<'full_body' | 'upper_lower' | 'push_pull_legs' | 'upper' | 'lower'>('full_body')
   const [equipment, setEquipment] = useState<string[]>(defaultEquipment)
+
+  // Adjust defaults based on readiness state
+  React.useEffect(() => {
+    if (readinessState === 'recovery_focus') {
+      setTimeAvailable(30) // Shorter sessions
+      setEnergyLevel(2) // Lower intensity
+    } else if (readinessState === 'take_it_lighter') {
+      setTimeAvailable(45)
+      setEnergyLevel(3)
+    } else if (readinessState === 'ready_to_push') {
+      setTimeAvailable(90) // Longer sessions
+      setEnergyLevel(5) // Maximum intensity
+    }
+  }, [readinessState])
 
   const handleMuscleToggle = (muscle: string) => {
     setTargetMuscles((prev) =>
@@ -57,6 +73,21 @@ export function TrainTodayPanel({ defaultEquipment, onGenerate, isLoading }: Tra
 
   return (
     <div className="space-y-6">
+      {readinessState && readinessState !== 'solid_to_train' && (
+        <Card className="border-amber-500/30 bg-amber-500/5 p-3 flex gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-800 dark:text-amber-200">
+            <p className="font-semibold">Readiness Suggestions Applied</p>
+            <p className="mt-1 opacity-90">
+              {readinessState === 'recovery_focus' 
+                ? 'Light session recommended - lower intensity and shorter duration'
+                : readinessState === 'take_it_lighter'
+                ? 'Moderate session suggested - take it easier today'
+                : 'You\'re primed for intensity - longer session with higher effort'}
+            </p>
+          </div>
+        </Card>
+      )}
       <div className="rounded-lg border border-border bg-card p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Select Target Muscles</h3>
         <div className="flex flex-wrap gap-2">
