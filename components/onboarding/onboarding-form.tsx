@@ -103,6 +103,7 @@ export function OnboardingForm() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
+      // Update profile with name
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
@@ -112,10 +113,15 @@ export function OnboardingForm() {
 
       if (profileError) throw profileError
 
+      // Calculate date of birth from age
       const today = new Date()
       const birthYear = today.getFullYear() - (formData.age || 25)
       const dateOfBirth = `${birthYear}-01-01`
 
+      // Convert training days to strings for TEXT[] column
+      const trainingDaysAsStrings = formData.preferred_training_days.map(String)
+
+      // Update fitness profile
       const { error: fitnessError } = await supabase
         .from('fitness_profiles')
         .update({
@@ -129,7 +135,7 @@ export function OnboardingForm() {
           height: formData.height_in,
           height_unit: 'in',
           date_of_birth: dateOfBirth,
-          preferred_training_days: formData.preferred_training_days,
+          preferred_training_days: trainingDaysAsStrings,
           onboarding_completed: true,
         })
         .eq('user_id', user.id)
@@ -139,6 +145,7 @@ export function OnboardingForm() {
       router.push('/app/dashboard')
       router.refresh()
     } catch (err) {
+      console.error('[v0] Onboarding error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setIsSubmitting(false)
