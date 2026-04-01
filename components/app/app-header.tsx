@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Dumbbell, LogOut, User } from 'lucide-react'
+import { Dumbbell, LogOut, User, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
 
 interface AppHeaderProps {
@@ -45,10 +45,23 @@ export function AppHeader({ user }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/app/dashboard" className="flex items-center gap-2">
-          <Dumbbell className="h-6 w-6 text-foreground" />
-          <span className="text-xl font-bold text-foreground">Forge</span>
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link href="/app/dashboard" className="flex items-center gap-2">
+            <Dumbbell className="h-6 w-6 text-foreground" />
+            <span className="text-xl font-bold text-foreground">Forge</span>
+          </Link>
+          <nav className="hidden md:flex items-center gap-1">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/app/dashboard">Dashboard</Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/app/progress">Progress</Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/app/activity">Activity</Link>
+            </Button>
+          </nav>
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -69,6 +82,23 @@ export function AppHeader({ user }: AppHeaderProps) {
               </div>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="md:hidden">
+              <Link href="/app/dashboard" className="cursor-pointer">
+                Dashboard
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="md:hidden">
+              <Link href="/app/progress" className="cursor-pointer">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Progress
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="md:hidden">
+              <Link href="/app/activity" className="cursor-pointer">
+                Activity
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="md:hidden" />
             <DropdownMenuItem asChild>
               <Link href="/app/profile" className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
