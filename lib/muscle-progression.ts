@@ -1,10 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import type { Database } from '@/types/database'
+import type { ExerciseLibrary } from '@/types/database'
 
-type Exercise = Database['public']['Tables']['exercise_library']['Row']
-type MuscleProgress = Database['public']['Tables']['muscle_progress']['Row']
+type Exercise = ExerciseLibrary
 
 /**
  * EXERCISE TO MUSCLE GROUP MAPPING

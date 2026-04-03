@@ -17,7 +17,7 @@ export interface GeneratedWorkout {
   exercises: GeneratedExercise[]
   warmup: GeneratedExercise[]
   finisher: GeneratedExercise | null
-  cooldown: GeneratedExercise | null
+  cooldown: GeneratedExercise[]
   reasoning: WorkoutReasoning
 }
 
@@ -221,31 +221,6 @@ function generateMainLifts(
         reps: '6-10',
         restSeconds: 120,
         difficulty: selected.difficulty || 'intermediate',
-        type: 'main',
-        tips: selected.tips || ['Control the weight', 'Full range of motion'],
-      })
-    }
-  }
-
-  return results
-}
-
-    let candidates = findExercisesForMuscle(muscle, exercises, equipment, true)
-
-    if (candidates.length === 0) {
-      candidates = findExercisesForMuscle(muscle, exercises, equipment, false)
-    }
-
-    if (candidates.length > 0) {
-      const selected = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
-      results.push({
-        name: selected.name,
-        primaryMuscle: selected.primary_muscle,
-        secondaryMuscles: selected.secondary_muscles || [],
-        sets: 3,
-        reps: '6-10',
-        restSeconds: 120,
-        difficulty: selected.difficulty,
         type: 'main',
         tips: selected.tips || ['Control the weight', 'Full range of motion'],
       })

@@ -14,6 +14,7 @@ export interface TrainingBalanceInsight {
   volumeLastWeek: number
   daysAgo: number
   trainingFrequency: number // times trained in last 30 days
+  recoveryScore: number
   status: 'undertrained' | 'well_balanced' | 'overtrained'
   recommendation: string
 }
@@ -107,6 +108,7 @@ export function analyzeTrainingBalance(
       volumeLastWeek: ms.volumeLastWeek,
       daysAgo: ms.daysAgo,
       trainingFrequency: ms.trainingFrequency,
+      recoveryScore: ms.recoveryScore,
       status,
       recommendation,
     }

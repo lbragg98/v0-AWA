@@ -22,9 +22,11 @@ export function ProfileSummaryCard({ profile, fitnessProfile }: ProfileSummaryCa
     return level.charAt(0).toUpperCase() + level.slice(1)
   }
 
-  const getTrainingDays = (days: number[] | undefined) => {
+  const getTrainingDays = (days: Array<number | string> | undefined) => {
     if (!days || days.length === 0) return 'Not set'
     return days
+      .map((d) => Number(d))
+      .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
       .sort((a, b) => a - b)
       .map(d => DAYS_OF_WEEK.find(day => day.value === d)?.label || '')
       .join(', ')

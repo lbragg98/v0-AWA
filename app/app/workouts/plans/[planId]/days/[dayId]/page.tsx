@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,9 +13,11 @@ import { ArrowLeft, Clock, Zap, Plus } from 'lucide-react'
 import Link from 'next/link'
 import type { WorkoutDay, WorkoutExercise, ExerciseLibrary } from '@/types/database'
 
-export default function WorkoutDayDetailPage({ params }: { params: { planId: string; dayId: string } }) {
+export default function WorkoutDayDetailPage({ params }: { params: Promise<{ planId: string; dayId: string }> }) {
+  const resolvedParams = use(params)
+  const { planId, dayId } = resolvedParams
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [day, setDay] = useState<WorkoutDay | null>(null)
   const [exercises, setExercises] = useState<(WorkoutExercise & { exercise?: ExerciseLibrary })[]>([])
   const [allExercises, setAllExercises] = useState<ExerciseLibrary[]>([])
@@ -35,7 +38,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
         const { data: plan } = await supabase
           .from('workout_plans')
           .select('id')
-          .eq('id', params.planId)
+          .eq('id', planId)
           .eq('user_id', user.id)
           .single()
 
@@ -48,8 +51,8 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
         const { data: dayData, error: dayError } = await supabase
           .from('workout_days')
           .select('*')
-          .eq('id', params.dayId)
-          .eq('workout_plan_id', params.planId)
+          .eq('id', dayId)
+          .eq('workout_plan_id', planId)
           .single()
 
         if (dayError || !dayData) {
@@ -73,7 +76,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
         const { data: exercisesData, error: exercisesError } = await supabase
           .from('workout_exercises')
           .select('*')
-          .eq('workout_day_id', params.dayId)
+          .eq('workout_day_id', dayId)
           .order('order_index')
 
         if (exercisesError) {
@@ -110,16 +113,16 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
     }
 
     fetchDayDetails()
-  }, [params.planId, params.dayId])
+  }, [dayId, planId, router, supabase])
 
   const handleExercisesAdded = (newExercises: WorkoutExercise[]) => {
     // Refresh exercises list
     const fetchUpdatedExercises = async () => {
-      const { data: exercisesData } = await supabase
-        .from('workout_exercises')
-        .select('*')
-        .eq('workout_day_id', params.dayId)
-        .order('order_index')
+        const { data: exercisesData } = await supabase
+          .from('workout_exercises')
+          .select('*')
+          .eq('workout_day_id', dayId)
+          .order('order_index')
 
       if (exercisesData && exercisesData.length > 0) {
         const exerciseIds = (exercisesData as WorkoutExercise[]).map((e) => e.exercise_id)
@@ -146,7 +149,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild size="sm">
-          <Link href={`/app/workouts/plans/${params.planId}`}>
+          <Link href={`/app/workouts/plans/${planId}`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Plan
           </Link>
@@ -162,7 +165,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild size="sm">
-          <Link href={`/app/workouts/plans/${params.planId}`}>
+          <Link href={`/app/workouts/plans/${planId}`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Plan
           </Link>
@@ -183,7 +186,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <Button variant="ghost" asChild size="sm">
-            <Link href={`/app/workouts/plans/${params.planId}`}>
+            <Link href={`/app/workouts/plans/${planId}`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -195,7 +198,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
           </div>
         </div>
         <Button asChild size="lg">
-          <Link href={`/app/workouts/plans/${params.planId}/start?dayId=${params.dayId}`}>
+          <Link href={`/app/workouts/plans/${planId}/start?dayId=${dayId}`}>
             <Zap className="mr-2 h-4 w-4" />
             Start Workout
           </Link>
@@ -319,7 +322,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
 
       {/* Exercise Assignment Modal */}
       <ExerciseAssignment
-        workoutDayId={params.dayId}
+        workoutDayId={dayId}
         exercises={allExercises}
         open={showExerciseModal}
         onOpenChange={setShowExerciseModal}
@@ -329,7 +332,7 @@ export default function WorkoutDayDetailPage({ params }: { params: { planId: str
       {/* Footer Action */}
       <div className="pt-4 border-t">
         <Button asChild size="lg" className="w-full">
-          <Link href={`/app/workouts/plans/${params.planId}/start?dayId=${params.dayId}`}>
+          <Link href={`/app/workouts/plans/${planId}/start?dayId=${dayId}`}>
             <Zap className="mr-2 h-4 w-4" />
             Start Workout
           </Link>

@@ -10,6 +10,12 @@ import type { Profile, FitnessProfile, Goal, WorkoutPlan, WorkoutDay, UserStreak
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+const normalizeTrainingDays = (days: Array<number | string> | null | undefined): number[] =>
+  (days || [])
+    .map((day) => Number(day))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((a, b) => a - b)
+
 export default async function TodayPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -81,8 +87,10 @@ export default async function TodayPage() {
 
     if (workoutDaysData && workoutDaysData.length > 0) {
       const workoutDays = workoutDaysData as WorkoutDay[]
-      const preferredDays = fitnessProfile?.preferred_training_days || []
-      const dayIndex = preferredDays.findIndex((d) => parseInt(d) === today)
+      const preferredDays = normalizeTrainingDays(
+        fitnessProfile?.preferred_training_days as Array<number | string> | undefined
+      )
+      const dayIndex = preferredDays.findIndex((d) => d === today)
       
       if (dayIndex >= 0 && workoutDays[dayIndex]) {
         todayWorkout = workoutDays[dayIndex]
@@ -326,7 +334,9 @@ export default async function TodayPage() {
           <div className="grid grid-cols-7 gap-1.5">
             {DAYS.map((day, index) => {
               const isToday = new Date().getDay() === index
-              const isTrainingDay = fitnessProfile?.preferred_training_days?.includes(String(index))
+              const isTrainingDay = normalizeTrainingDays(
+                fitnessProfile?.preferred_training_days as Array<number | string> | undefined
+              ).includes(index)
               return (
                 <div
                   key={day}

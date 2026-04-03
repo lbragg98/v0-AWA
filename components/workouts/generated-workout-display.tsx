@@ -95,7 +95,7 @@ export function GeneratedWorkoutDisplay({ workout }: GeneratedWorkoutDisplayProp
       {workout.cooldown.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-lg font-semibold text-foreground">Cooldown</h3>
-          {workout.cooldown.map((exercise, idx) => (
+          {workout.cooldown.map((exercise: GeneratedExercise, idx: number) => (
             <ExerciseCard key={idx} exercise={exercise} />
           ))}
         </div>

@@ -19,6 +19,13 @@ export async function POST(request: Request) {
 
     console.log('[v0] Creating workout plan:', { planName: plan.name, goal: plan.goal })
 
+    const trainingDays = Array.isArray(plan.trainingDays)
+      ? plan.trainingDays
+          .map((day: number | string) => Number(day))
+          .filter((day: number) => Number.isInteger(day) && day >= 0 && day <= 6)
+          .sort((a: number, b: number) => a - b)
+      : []
+
     // Create workout plan
     const { data: createdPlan, error: planError } = await supabase
       .from('workout_plans')
@@ -42,6 +49,20 @@ export async function POST(request: Request) {
     }
 
     console.log('[v0] Created plan:', createdPlan.id)
+
+    if (trainingDays.length > 0) {
+      const { error: profileUpdateError } = await supabase
+        .from('fitness_profiles')
+        .update({
+          workout_frequency: trainingDays.length,
+          preferred_training_days: trainingDays.map(String),
+        })
+        .eq('user_id', user.id)
+
+      if (profileUpdateError) {
+        console.error('[v0] Error updating preferred training days:', profileUpdateError)
+      }
+    }
 
     // Create workout days
     for (const day of workoutDays) {

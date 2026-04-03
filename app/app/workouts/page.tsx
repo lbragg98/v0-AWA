@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -18,7 +18,8 @@ import { analyzeTrainingBalance } from '@/lib/training-balance'
 import type { WorkoutPlan, ExerciseLibrary, FitnessProfile, MuscleProgress, CompletedWorkout, Goal } from '@/types/database'
 
 export default function WorkoutsPage() {
-  const supabase = createClient()
+  const router = useRouter()
+  const [supabase] = useState(() => createClient())
   const [user, setUser] = useState<any>(null)
   const [exercises, setExercises] = useState<ExerciseLibrary[]>([])
   const [plans, setPlans] = useState<WorkoutPlan[]>([])
@@ -36,7 +37,8 @@ export default function WorkoutsPage() {
     const fetchData = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) {
-        redirect('/auth/login')
+        router.push('/auth/login')
+        return
       }
       setUser(authUser)
 
@@ -83,7 +85,7 @@ export default function WorkoutsPage() {
     }
 
     fetchData()
-  }, [])
+  }, [router, supabase])
 
   const handleGenerateWorkout = async (prefs: RecommendationPreferences) => {
     setIsGenerating(true)

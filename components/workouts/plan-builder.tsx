@@ -21,6 +21,30 @@ import { SPLIT_TEMPLATES, AVAILABLE_BODY_PARTS } from '@/types/workouts'
 import type { BodyPart } from '@/types/workouts'
 import type { ExerciseLibrary } from '@/types/database'
 
+const DAYS_OF_WEEK = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+] as const
+
+function getDefaultTrainingDays(count: number): number[] {
+  const presets: Record<number, number[]> = {
+    1: [1],
+    2: [1, 4],
+    3: [1, 3, 5],
+    4: [1, 2, 4, 5],
+    5: [1, 2, 3, 5, 6],
+    6: [1, 2, 3, 4, 5, 6],
+    7: [0, 1, 2, 3, 4, 5, 6],
+  }
+
+  return presets[count] || [1, 3, 5]
+}
+
 interface PlanBuilderProps {
   exercises: ExerciseLibrary[]
   initialPlan?: any
@@ -39,6 +63,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
 
   // Step 2: Days per week selection
   const [daysPerWeek, setDaysPerWeek] = useState(3)
+  const [trainingDays, setTrainingDays] = useState<number[]>(getDefaultTrainingDays(3))
 
   // Step 3: Split selection
   const [selectedSplit, setSelectedSplit] = useState<string>('full_body')
@@ -50,7 +75,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
 
   // Validation
   const isStep1Valid = planName.trim() !== ''
-  const isStep2Valid = daysPerWeek >= 1 && daysPerWeek <= 7
+  const isStep2Valid = daysPerWeek >= 1 && daysPerWeek <= 7 && trainingDays.length === daysPerWeek
   const isStep3Valid = selectedSplit !== ''
   const isStep4Valid = customDays.length > 0
 
@@ -77,7 +102,32 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
     if (template) {
       setCustomDays(template.days.slice(0, daysPerWeek))
       setDaysPerWeek(template.daysPerWeek)
+      setTrainingDays(getDefaultTrainingDays(template.daysPerWeek))
     }
+  }
+
+  const handleDaysPerWeekChange = (num: number) => {
+    setDaysPerWeek(num)
+    setTrainingDays((prev) => {
+      const sorted = [...prev].sort((a, b) => a - b)
+      if (sorted.length === num) return sorted
+      if (sorted.length > num) return sorted.slice(0, num)
+      return getDefaultTrainingDays(num)
+    })
+  }
+
+  const toggleTrainingDay = (day: number) => {
+    setTrainingDays((prev) => {
+      if (prev.includes(day)) {
+        return prev.filter((d) => d !== day).sort((a, b) => a - b)
+      }
+
+      if (prev.length >= daysPerWeek) {
+        return prev
+      }
+
+      return [...prev, day].sort((a, b) => a - b)
+    })
   }
 
   const updateCustomDay = (
@@ -121,6 +171,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
             trainingFrequency: customDays.length,
             experienceLevel: 'beginner',
             splitType: selectedSplit,
+            trainingDays,
           },
           workoutDays: customDays.map((day, idx) => ({
             dayNumber: idx + 1,
@@ -128,6 +179,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
             targetMuscles: day.bodyParts,
             exercises: [],
             estimated_minutes: day.estimatedMinutes,
+            scheduledDay: trainingDays[idx] ?? null,
           })),
         }),
       })
@@ -254,8 +306,8 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
           {currentStep === 1 && (
             <Card>
               <CardHeader>
-                <CardTitle>Training Days Per Week</CardTitle>
-                <CardDescription>How many days per week do you want to train?</CardDescription>
+                <CardTitle>Training Schedule</CardTitle>
+                <CardDescription>Choose how many days you train and which weekdays you want to use</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-4 gap-2">
@@ -263,7 +315,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
                     <Button
                       key={num}
                       variant={daysPerWeek === num ? 'default' : 'outline'}
-                      onClick={() => setDaysPerWeek(num)}
+                      onClick={() => handleDaysPerWeekChange(num)}
                       className="h-12 text-lg font-semibold"
                     >
                       {num}x
@@ -273,6 +325,26 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
                 <p className="text-sm text-muted-foreground">
                   {daysPerWeek} days per week allows for adequate recovery between sessions
                 </p>
+                <div className="space-y-3 border-t pt-4">
+                  <Label>Select {daysPerWeek} workout day{daysPerWeek === 1 ? '' : 's'}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map((day) => (
+                      <Button
+                        key={day.value}
+                        type="button"
+                        variant={trainingDays.includes(day.value) ? 'default' : 'outline'}
+                        onClick={() => toggleTrainingDay(day.value)}
+                        disabled={!trainingDays.includes(day.value) && trainingDays.length >= daysPerWeek}
+                        className="min-w-14"
+                      >
+                        {day.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pick exactly {daysPerWeek} day{daysPerWeek === 1 ? '' : 's'} so Forge knows when your workouts should show up.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -339,6 +411,9 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
                     <div className="flex items-end gap-3">
                       <div className="flex-1">
                         <Label className="text-xs text-muted-foreground mb-1 block">Day {dayIdx + 1}</Label>
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          Scheduled for {DAYS_OF_WEEK.find((option) => option.value === trainingDays[dayIdx])?.label || `Day ${dayIdx + 1}`}
+                        </p>
                         <Input
                           placeholder="e.g., Upper Power, Leg Day"
                           value={day.label}

@@ -5,7 +5,6 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TIER_CONFIG, getXPProgressInTier, getNextTier, type MuscleTier } from '@/lib/muscle-colors'
-import { analyzeMuscleState, getRecoveryReadiness } from '@/lib/muscle-intelligence'
 import { Flame, Zap, Target, Heart, Calendar, Lightbulb, AlertCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -38,9 +37,26 @@ export function MuscleDetailDrawer({ muscle, open, onOpenChange, allMuscles = []
   const progress = getXPProgressInTier(muscle.xp, muscle.tier)
   const nextTier = getNextTier(muscle.tier)
   const nextTierConfig = nextTier ? TIER_CONFIG[nextTier] : null
-  
-  const analysis = analyzeMuscleState(muscle, allMuscles)
-  const recoveryReadiness = getRecoveryReadiness(muscle)
+
+  const daysSinceLastTrain = muscle.lastTrainedAt
+    ? Math.floor((Date.now() - new Date(muscle.lastTrainedAt).getTime()) / (1000 * 60 * 60 * 24))
+    : 999
+  const recoveryReadiness = Math.max(0, Math.min(1, muscle.recoveryScore / 100))
+  const analysis = {
+    state:
+      daysSinceLastTrain >= 3
+        ? ('undertrained' as const)
+        : muscle.recoveryScore < 50
+        ? ('fatigued' as const)
+        : ('balanced' as const),
+    recommendation:
+      daysSinceLastTrain >= 7
+        ? `Time to train this again. It's been ${daysSinceLastTrain} days.`
+        : muscle.recoveryScore < 50
+        ? 'This muscle is still recovering. Keep the next session lighter.'
+        : 'Training load looks balanced right now.',
+    recoveryStatus: muscle.recoveryScore < 50 ? ('fatigued' as const) : ('recovered' as const),
+  }
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Never'

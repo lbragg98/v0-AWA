@@ -74,6 +74,20 @@ export interface CompletedWorkout {
   created_at: string
 }
 
+export interface CompletedSet {
+  id: string
+  completed_workout_id: string
+  exercise_id: string
+  exercise_index: number
+  set_number: number
+  weight: number
+  weight_unit: 'kg' | 'lbs'
+  reps: number
+  rpe: number | null
+  rest_seconds: number | null
+  created_at: string
+}
+
 export interface MuscleGroup {
   id: string
   name: string
@@ -201,4 +215,17 @@ export interface DashboardStats {
   longestStreak: number
   activeGoals: number
   totalVolume: number
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      exercise_library: {
+        Row: ExerciseLibrary
+      }
+      muscle_progress: {
+        Row: MuscleProgress
+      }
+    }
+  }
 }
