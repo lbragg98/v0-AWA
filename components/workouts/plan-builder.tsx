@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -14,10 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft, Save, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
+import { SPLIT_TEMPLATES, AVAILABLE_BODY_PARTS } from '@/types/workouts'
+import type { BodyPart } from '@/types/workouts'
 import type { ExerciseLibrary } from '@/types/database'
 
 interface PlanBuilderProps {
@@ -31,41 +32,83 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
-  
-  // Plan basic info
-  const [planForm, setPlanForm] = useState({
-    name: initialPlan?.name || '',
-    goal: initialPlan?.goal || 'muscle_gain',
-  })
 
-  // Workout day info
-  const [workoutDay, setWorkoutDay] = useState({
-    label: 'Day 1',
-    focus: 'Upper Body',
-    estimated_minutes: 60,
-  })
+  // Step 1: Basic info
+  const [planName, setPlanName] = useState(initialPlan?.name || '')
+  const [planGoal, setPlanGoal] = useState(initialPlan?.goal || 'muscle_gain')
+
+  // Step 2: Days per week selection
+  const [daysPerWeek, setDaysPerWeek] = useState(3)
+
+  // Step 3: Split selection
+  const [selectedSplit, setSelectedSplit] = useState<string>('full_body')
+
+  // Step 4: Custom day customization
+  const [customDays, setCustomDays] = useState(
+    SPLIT_TEMPLATES[selectedSplit as keyof typeof SPLIT_TEMPLATES]?.days || []
+  )
 
   // Validation
-  const isStep0Valid = planForm.name.trim() !== ''
-  const isStep1Valid = workoutDay.label.trim() !== '' && workoutDay.focus.trim() !== ''
+  const isStep1Valid = planName.trim() !== ''
+  const isStep2Valid = daysPerWeek >= 1 && daysPerWeek <= 7
+  const isStep3Valid = selectedSplit !== ''
+  const isStep4Valid = customDays.length > 0
 
-  // Step 1: Basic Info
-  const handleBasicInfoNext = () => {
+  const handleNext = () => {
     setError(null)
-    if (!isStep0Valid) {
+    if (currentStep === 0 && !isStep1Valid) {
       setError('Please enter a plan name')
       return
     }
-    setCurrentStep(1)
+    if (currentStep === 1 && !isStep2Valid) {
+      setError('Please select a valid number of days')
+      return
+    }
+    setCurrentStep(currentStep + 1)
   }
 
-  // Save plan
+  const handlePrev = () => {
+    setCurrentStep(Math.max(0, currentStep - 1))
+  }
+
+  const handleSplitSelect = (splitId: string) => {
+    setSelectedSplit(splitId)
+    const template = SPLIT_TEMPLATES[splitId as keyof typeof SPLIT_TEMPLATES]
+    if (template) {
+      setCustomDays(template.days.slice(0, daysPerWeek))
+      setDaysPerWeek(template.daysPerWeek)
+    }
+  }
+
+  const updateCustomDay = (
+    dayIndex: number,
+    field: 'label' | 'bodyParts' | 'estimatedMinutes',
+    value: any
+  ) => {
+    const updated = [...customDays]
+    if (field === 'bodyParts') {
+      updated[dayIndex].bodyParts = value
+    } else {
+      ;(updated[dayIndex] as any)[field] = value
+    }
+    setCustomDays(updated)
+  }
+
+  const toggleBodyPart = (dayIndex: number, bodyPart: BodyPart) => {
+    const day = customDays[dayIndex]
+    if (day.bodyParts.includes(bodyPart)) {
+      updateCustomDay(dayIndex, 'bodyParts', day.bodyParts.filter((b) => b !== bodyPart))
+    } else {
+      updateCustomDay(dayIndex, 'bodyParts', [...day.bodyParts, bodyPart])
+    }
+  }
+
   const handleSavePlan = async () => {
     setError(null)
     setIsLoading(true)
     try {
-      if (!isStep1Valid) {
-        throw new Error('Please complete all required fields')
+      if (!isStep1Valid || !isStep4Valid) {
+        throw new Error('Please complete all steps')
       }
 
       const response = await fetch('/api/workouts/plans', {
@@ -73,20 +116,19 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan: {
-            name: planForm.name.trim(),
-            goal: planForm.goal,
-            trainingFrequency: 1,
+            name: planName.trim(),
+            goal: planGoal,
+            trainingFrequency: customDays.length,
             experienceLevel: 'beginner',
+            splitType: selectedSplit,
           },
-          workoutDays: [
-            {
-              dayNumber: 1,
-              name: workoutDay.label.trim(),
-              targetMuscles: workoutDay.focus.trim() ? [workoutDay.focus.trim()] : [],
-              exercises: [],
-              estimated_minutes: workoutDay.estimated_minutes,
-            },
-          ],
+          workoutDays: customDays.map((day, idx) => ({
+            dayNumber: idx + 1,
+            name: day.label,
+            targetMuscles: day.bodyParts,
+            exercises: [],
+            estimated_minutes: day.estimatedMinutes,
+          })),
         }),
       })
 
@@ -99,8 +141,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
       router.push(`/app/workouts/plans/${id}`)
       router.refresh()
     } catch (err) {
-      console.error('[v0] Error saving plan:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create plan')
+      setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -108,19 +149,20 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" asChild>
-          <Link href="/app/workouts">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Link>
-        </Button>
-        <h1 className="text-2xl font-bold">Create Workout Plan</h1>
-        <div className="w-20" />
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" asChild size="sm">
+            <Link href="/app/workouts">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Create Workout Plan</h1>
+            <p className="text-muted-foreground mt-1">Step {currentStep + 1} of 4</p>
+          </div>
+        </div>
       </div>
 
-      {/* Error Alert */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -128,147 +170,233 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
         </Alert>
       )}
 
-      {/* Step Tabs */}
-      <Tabs value={currentStep.toString()} onValueChange={(v) => setCurrentStep(parseInt(v))}>
-        <TabsList className="w-full">
-          <TabsTrigger value="0" className="flex-1">
-            Plan Details
-          </TabsTrigger>
-          <TabsTrigger value="1" className="flex-1">
-            First Workout
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Step 0: Plan Details */}
-        <TabsContent value="0" className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Steps indicator */}
+        <div className="lg:col-span-1">
           <Card>
-            <CardHeader>
-              <CardTitle>Plan Details</CardTitle>
-              <CardDescription>
-                Create your basic workout plan with a name and goal
-              </CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Setup Steps</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Plan Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Summer Shred 2024"
-                  value={planForm.name}
-                  onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
-                />
-                {!isStep0Valid && planForm.name === '' && (
-                  <p className="text-xs text-destructive">Plan name is required</p>
-                )}
-              </div>
+            <CardContent className="space-y-2">
+              {[
+                { step: 0, label: 'Plan Name', desc: 'Name your plan' },
+                { step: 1, label: 'Training Days', desc: 'How many days/week?' },
+                { step: 2, label: 'Select Split', desc: 'Choose a template' },
+                { step: 3, label: 'Customize Days', desc: 'Adjust each day' },
+              ].map((item) => (
+                <div
+                  key={item.step}
+                  className={`flex items-start gap-3 p-3 rounded-lg ${
+                    currentStep === item.step
+                      ? 'bg-primary/10 border border-primary'
+                      : currentStep > item.step
+                      ? 'bg-green-100/50 dark:bg-green-900/20'
+                      : 'bg-muted/30'
+                  }`}
+                >
+                  <div
+                    className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-semibold ${
+                      currentStep >= item.step ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    }`}
+                  >
+                    {item.step + 1}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="goal">Primary Goal *</Label>
-                <Select value={planForm.goal} onValueChange={(v: any) => setPlanForm({ ...planForm, goal: v })}>
-                  <SelectTrigger id="goal">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fat_loss">Fat Loss</SelectItem>
-                    <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
-                    <SelectItem value="strength">Strength</SelectItem>
-                    <SelectItem value="endurance">Endurance</SelectItem>
-                    <SelectItem value="general_fitness">General Fitness</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Main content */}
+        <div className="lg:col-span-2">
+          {/* Step 1: Plan Name */}
+          {currentStep === 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Plan Name & Goal</CardTitle>
+                <CardDescription>Give your plan a name and choose your primary goal</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="plan-name">Plan Name</Label>
+                  <Input
+                    id="plan-name"
+                    placeholder="e.g., Summer Strength, Beginner Full Body"
+                    value={planName}
+                    onChange={(e) => setPlanName(e.target.value)}
+                  />
+                </div>
 
-              <Button className="w-full mt-6" onClick={handleBasicInfoNext} disabled={!isStep0Valid}>
-                Continue to First Workout
+                <div className="space-y-2">
+                  <Label htmlFor="plan-goal">Primary Goal</Label>
+                  <Select value={planGoal} onValueChange={setPlanGoal}>
+                    <SelectTrigger id="plan-goal">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="muscle_gain">Muscle Gain (Hypertrophy)</SelectItem>
+                      <SelectItem value="strength">Strength & Power</SelectItem>
+                      <SelectItem value="fat_loss">Fat Loss</SelectItem>
+                      <SelectItem value="endurance">Endurance</SelectItem>
+                      <SelectItem value="general_fitness">General Fitness</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 2: Days per Week */}
+          {currentStep === 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Training Days Per Week</CardTitle>
+                <CardDescription>How many days per week do you want to train?</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+                    <Button
+                      key={num}
+                      variant={daysPerWeek === num ? 'default' : 'outline'}
+                      onClick={() => setDaysPerWeek(num)}
+                      className="h-12 text-lg font-semibold"
+                    >
+                      {num}x
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {daysPerWeek} days per week allows for adequate recovery between sessions
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 3: Select Split Template */}
+          {currentStep === 2 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Choose a Split Template</CardTitle>
+                <CardDescription>Select a proven split pattern for {daysPerWeek} days/week</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.values(SPLIT_TEMPLATES)
+                  .filter((template) => template.daysPerWeek === daysPerWeek || daysPerWeek >= template.daysPerWeek)
+                  .map((template) => (
+                    <Button
+                      key={template.id}
+                      variant={selectedSplit === template.id ? 'default' : 'outline'}
+                      onClick={() => handleSplitSelect(template.id)}
+                      className="w-full justify-start h-auto p-4"
+                    >
+                      <div className="flex flex-col items-start gap-2 w-full">
+                        <div className="flex items-center justify-between w-full">
+                          <p className="font-semibold">{template.name}</p>
+                          <Badge variant="secondary">{template.daysPerWeek}x/week</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground text-left">{template.description}</p>
+                      </div>
+                    </Button>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 4: Customize Days */}
+          {currentStep === 3 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Customize Training Days</CardTitle>
+                <CardDescription>Adjust each day&apos;s focus and body parts</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {customDays.map((day, dayIdx) => (
+                  <div key={dayIdx} className="border rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Day {dayIdx + 1}</h3>
+                      <Input
+                        placeholder="Day label"
+                        value={day.label}
+                        onChange={(e) => updateCustomDay(dayIdx, 'label', e.target.value)}
+                        className="w-40"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">Body Parts Focus</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(AVAILABLE_BODY_PARTS as unknown as BodyPart[]).map((bodyPart) => (
+                          <Button
+                            key={bodyPart}
+                            variant={day.bodyParts.includes(bodyPart) ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => toggleBodyPart(dayIdx, bodyPart)}
+                            className="text-xs capitalize"
+                          >
+                            {bodyPart}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`duration-${dayIdx}`} className="text-sm">
+                        Estimated Duration (minutes)
+                      </Label>
+                      <Input
+                        id={`duration-${dayIdx}`}
+                        type="number"
+                        min="30"
+                        max="180"
+                        value={day.estimatedMinutes}
+                        onChange={(e) => updateCustomDay(dayIdx, 'estimatedMinutes', parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Navigation Buttons */}
+          <div className="flex gap-3 mt-6">
+            {currentStep > 0 && (
+              <Button variant="outline" onClick={handlePrev}>
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
               </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            )}
 
-        {/* Step 1: Workout Day */}
-        <TabsContent value="1" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>First Workout Day</CardTitle>
-              <CardDescription>
-                Set up your first workout day. You can add more exercises later.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="label">Workout Label *</Label>
-                <Input
-                  id="label"
-                  placeholder="e.g., Day 1, Chest Day, Monday"
-                  value={workoutDay.label}
-                  onChange={(e) => setWorkoutDay({ ...workoutDay, label: e.target.value })}
-                />
-              </div>
+            {currentStep < 3 && (
+              <Button onClick={handleNext}>
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="focus">Muscle Focus *</Label>
-                <Input
-                  id="focus"
-                  placeholder="e.g., Upper Body, Chest & Back, Legs"
-                  value={workoutDay.focus}
-                  onChange={(e) => setWorkoutDay({ ...workoutDay, focus: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration">Estimated Duration (minutes)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min="10"
-                  max="300"
-                  value={workoutDay.estimated_minutes}
-                  onChange={(e) => setWorkoutDay({ ...workoutDay, estimated_minutes: parseInt(e.target.value) || 60 })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="goal-text">Workout Goal</Label>
-                <Textarea
-                  id="goal-text"
-                  placeholder="e.g., Complete all sets with good form"
-                  value={workoutDay.smart_goal_text}
-                  onChange={(e) => setWorkoutDay({ ...workoutDay, smart_goal_text: e.target.value })}
-                  className="resize-none"
-                  rows={3}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex gap-2 justify-end pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setCurrentStep(0)}
-              disabled={isLoading}
-            >
-              Back
-            </Button>
-            <Button
-              onClick={handleSavePlan}
-              disabled={isLoading || !isStep1Valid}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Create Plan
-                </>
-              )}
-            </Button>
+            {currentStep === 3 && (
+              <Button onClick={handleSavePlan} disabled={isLoading || !isStep4Valid}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating Plan...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Create Plan
+                  </>
+                )}
+              </Button>
+            )}
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   )
 }

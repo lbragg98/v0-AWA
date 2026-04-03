@@ -40,6 +40,71 @@ export interface GeneratedExercise {
   tips: string[]
 }
 
+// Normalize muscle names to handle variations
+function normalizeMuscle(muscle: string): string {
+  const normalized = muscle.toLowerCase().trim()
+  const aliases: Record<string, string> = {
+    'chest': 'chest',
+    'pecs': 'chest',
+    'pectoral': 'chest',
+    'back': 'back',
+    'lats': 'back',
+    'lat': 'back',
+    'latissimus': 'back',
+    'shoulders': 'shoulders',
+    'shoulder': 'shoulders',
+    'delts': 'shoulders',
+    'deltoid': 'shoulders',
+    'biceps': 'biceps',
+    'bicep': 'biceps',
+    'triceps': 'triceps',
+    'tricep': 'triceps',
+    'arms': 'biceps',
+    'forearms': 'forearms',
+    'forearm': 'forearms',
+    'abs': 'abs',
+    'abdominal': 'abs',
+    'core': 'abs',
+    'obliques': 'obliques',
+    'oblique': 'obliques',
+    'glutes': 'glutes',
+    'glute': 'glutes',
+    'butt': 'glutes',
+    'quads': 'quads',
+    'quadriceps': 'quads',
+    'hamstrings': 'hamstrings',
+    'hamstring': 'hamstrings',
+    'hams': 'hamstrings',
+    'calves': 'calves',
+    'calf': 'calves',
+    'traps': 'traps',
+    'trapezius': 'traps',
+  }
+  return aliases[normalized] || normalized
+}
+
+// Find exercises that match a target muscle
+function findExercisesForMuscle(
+  targetMuscle: string,
+  exercises: ExerciseLibrary[],
+  equipment?: string[],
+  isCompound: boolean = true
+): ExerciseLibrary[] {
+  const normalizedTarget = normalizeMuscle(targetMuscle)
+
+  return exercises.filter((ex) => {
+    const primaryMatch = normalizeMuscle(ex.primary_muscle) === normalizedTarget
+    const secondaryMatch =
+      ex.secondary_muscles &&
+      ex.secondary_muscles.some((m) => normalizeMuscle(m) === normalizedTarget)
+    const equipmentMatch =
+      !equipment || !ex.equipment || equipment.some((e) => ex.equipment?.includes(e))
+    const compoundMatch = !isCompound || ex.is_compound
+
+    return (primaryMatch || secondaryMatch) && equipmentMatch && compoundMatch
+  })
+}
+
 export function generateWorkoutRecommendation(
   preferences: RecommendationPreferences,
   exercises: ExerciseLibrary[],
@@ -53,143 +118,151 @@ export function generateWorkoutRecommendation(
       const daysSince = (Date.now() - lastTrained.getTime()) / (1000 * 60 * 60 * 24)
       return daysSince < 3
     })
-    .map((mp) => ({
-      name: mp.muscle_group?.name?.toLowerCase() || '',
-      recoveryReadiness: getRecoveryReadiness(mp),
-    }))
-    .filter((r) => r.name)
+    .map((mp) => normalizeMuscle(mp.muscle_group?.name || ''))
 
-  const warmupExercises = createWarmup(exercises, preferences)
-  const mainExercises = createMainLifts(exercises, preferences, fitnessProfile, recentlyTrained)
-  const accessories = createAccessories(exercises, preferences, mainExercises, recentlyTrained)
-  const finisher = createFinisher(exercises, preferences, preferences.energyLevel >= 4)
-  const cooldown = createCooldown(exercises)
+  const warmupExercises = findWarmupExercises(exercises)
+  const mainExercises = generateMainLifts(
+    preferences.targetMuscles,
+    exercises,
+    preferences.availableEquipment,
+    recentlyTrained
+  )
+  const accessories = generateAccessories(
+    preferences.targetMuscles,
+    exercises,
+    mainExercises,
+    preferences.availableEquipment
+  )
+  const finisher = preferences.energyLevel >= 4 ? findFinisher(exercises) : null
+  const cooldown = findCooldownExercises(exercises)
 
-  const estimatedDuration = calculateDuration([...warmupExercises, ...mainExercises, ...accessories, ...(finisher ? [finisher] : []), ...cooldown])
-  const smartGoal = createSmartGoalText(mainExercises, preferences)
-  
+  const estimatedDuration = computeWorkoutDuration(
+    [...warmupExercises, ...mainExercises, ...accessories, ...(finisher ? [finisher] : []), ...cooldown]
+  )
+
   const reasoning: WorkoutReasoning = {
-    selectedMuscles: 'Focused on ' + preferences.targetMuscles.join(', '),
-    recoveryStatus: recentlyTrained.length > 0 
-      ? 'Avoiding heavy work on recently trained muscles' 
-      : 'All muscles recovered and ready',
-    equipmentFit: 'Using ' + preferences.availableEquipment.join(', '),
-    timefit: estimatedDuration + ' min session fits your ' + preferences.timeAvailable + ' min availability',
+    selectedMuscles: preferences.targetMuscles.join(', '),
+    recoveryStatus: recentlyTrained.length > 0 ? 'Avoiding recently trained muscles' : 'All muscles recovered',
+    equipmentFit: `Using available equipment: ${preferences.availableEquipment.join(', ') || 'bodyweight'}`,
+    timefit: `${estimatedDuration}min session`,
   }
 
   return {
-    name: createWorkoutName(preferences),
-    smartGoal,
+    name: generateWorkoutName(preferences.targetMuscles),
+    smartGoal: generateSmartGoal(mainExercises, preferences.targetMuscles),
     estimatedDuration,
     exercises: [...mainExercises, ...accessories],
     warmup: warmupExercises,
-    finisher: finisher || null,
+    finisher,
     cooldown,
     reasoning,
   }
 }
 
-function createWarmup(exercises: ExerciseLibrary[], _preferences: RecommendationPreferences): GeneratedExercise[] {
-  const warmups = exercises.filter((e) => e.category === 'warmup')
+function generateMainLifts(
+  targetMuscles: string[],
+  exercises: ExerciseLibrary[],
+  equipment: string[],
+  recentlyTrained: string[]
+): GeneratedExercise[] {
+  const results: GeneratedExercise[] = []
+
+  for (const muscle of targetMuscles) {
+    if (recentlyTrained.includes(normalizeMuscle(muscle))) {
+      continue
+    }
+
+    let candidates = findExercisesForMuscle(muscle, exercises, equipment, true)
+
+    if (candidates.length === 0) {
+      candidates = findExercisesForMuscle(muscle, exercises, equipment, false)
+    }
+
+    if (candidates.length > 0) {
+      const selected = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
+      results.push({
+        name: selected.name,
+        primaryMuscle: selected.primary_muscle,
+        secondaryMuscles: selected.secondary_muscles || [],
+        sets: 3,
+        reps: '6-10',
+        restSeconds: 120,
+        difficulty: selected.difficulty,
+        type: 'main',
+        tips: selected.tips || ['Control the weight', 'Full range of motion'],
+      })
+    }
+  }
+
+  return results
+}
+
+function generateAccessories(
+  targetMuscles: string[],
+  exercises: ExerciseLibrary[],
+  mainLifts: GeneratedExercise[],
+  equipment: string[]
+): GeneratedExercise[] {
+  const results: GeneratedExercise[] = []
+
+  for (const muscle of targetMuscles) {
+    let candidates = findExercisesForMuscle(muscle, exercises, equipment, false).filter(
+      (e) => !mainLifts.some((m) => m.name === e.name)
+    )
+
+    if (candidates.length > 0) {
+      const selected = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
+      results.push({
+        name: selected.name,
+        primaryMuscle: selected.primary_muscle,
+        secondaryMuscles: selected.secondary_muscles || [],
+        sets: 3,
+        reps: '10-15',
+        restSeconds: 60,
+        difficulty: selected.difficulty,
+        type: 'accessory',
+        tips: selected.tips || ['Controlled tempo', 'Mind-muscle connection'],
+      })
+    }
+  }
+
+  return results
+}
+
+function findWarmupExercises(exercises: ExerciseLibrary[]): GeneratedExercise[] {
+  const warmups = exercises.filter((e) => e.category === 'warmup').slice(0, 1)
   if (warmups.length === 0) {
     return [
       {
-        name: 'Arm Circles & Shoulder Rotations',
-        primaryMuscle: 'shoulders',
+        name: 'Dynamic Warmup',
+        primaryMuscle: 'general',
         secondaryMuscles: [],
         sets: 1,
-        reps: '10 each direction',
+        reps: '5-10 min',
         restSeconds: 0,
         difficulty: 'beginner',
         type: 'warmup',
-        tips: ['Controlled movement', 'Focus on mobility'],
+        tips: ['Increase heart rate', 'Prepare joints'],
       },
     ]
   }
-  return warmups.slice(0, 1).map((e) => ({
+  return warmups.map((e) => ({
     name: e.name,
     primaryMuscle: e.primary_muscle,
     secondaryMuscles: e.secondary_muscles || [],
     sets: 1,
-    reps: '10-15',
-    restSeconds: 30,
+    reps: '5-10 min',
+    restSeconds: 0,
     difficulty: e.difficulty,
-    type: 'warmup' as const,
+    type: 'warmup',
     tips: e.tips || [],
   }))
 }
 
-function createMainLifts(
-  exercises: ExerciseLibrary[],
-  preferences: RecommendationPreferences,
-  _fitnessProfile: FitnessProfile | null,
-  recentlyTrained: Array<{ name: string; recoveryReadiness: number }>
-): GeneratedExercise[] {
-  const candidates = exercises.filter((e) => {
-    const muscleMatch = preferences.targetMuscles.some((tm) =>
-      e.primary_muscle.toLowerCase().includes(tm.toLowerCase())
-    )
-    const equipmentMatch = !e.equipment || preferences.availableEquipment.some((ae) => e.equipment?.toLowerCase().includes(ae.toLowerCase()))
-    const notRecentlyTrained = !recentlyTrained.some((rt) => rt.name.includes(e.primary_muscle.toLowerCase()))
-    const isCompound = e.is_compound
-    return muscleMatch && equipmentMatch && notRecentlyTrained && isCompound
-  })
-
-  const mainLiftCount = preferences.timeAvailable > 60 ? 3 : preferences.timeAvailable > 45 ? 2 : 1
-  const selected = candidates.slice(0, mainLiftCount)
-
-  return selected.map((e) => ({
-    name: e.name,
-    primaryMuscle: e.primary_muscle,
-    secondaryMuscles: e.secondary_muscles || [],
-    sets: preferences.energyLevel >= 4 ? 4 : 3,
-    reps: e.difficulty === 'beginner' ? '8-10' : e.difficulty === 'intermediate' ? '6-8' : '3-5',
-    restSeconds: e.difficulty === 'beginner' ? 60 : e.difficulty === 'intermediate' ? 90 : 180,
-    difficulty: e.difficulty,
-    type: 'main' as const,
-    tips: e.tips || ['Control the weight', 'Full range of motion'],
-  }))
-}
-
-function createAccessories(
-  exercises: ExerciseLibrary[],
-  preferences: RecommendationPreferences,
-  mainLifts: GeneratedExercise[],
-  _recentlyTrained: Array<{ name: string; recoveryReadiness: number }>
-): GeneratedExercise[] {
-  const trainedMuscles = new Set([
-    ...mainLifts.map((e) => e.primaryMuscle.toLowerCase()),
-    ...mainLifts.flatMap((e) => e.secondaryMuscles.map((m) => m.toLowerCase())),
-  ])
-
-  const candidates = exercises.filter((e) => {
-    const isIsolation = !e.is_compound
-    const targetsTrained = trainedMuscles.has(e.primary_muscle.toLowerCase())
-    const equipmentMatch = !e.equipment || preferences.availableEquipment.some((ae) => e.equipment?.toLowerCase().includes(ae.toLowerCase()))
-    return isIsolation && targetsTrained && equipmentMatch
-  })
-
-  const accessoryCount = preferences.timeAvailable > 60 ? 2 : preferences.timeAvailable > 45 ? 1 : 0
-  const selected = candidates.slice(0, accessoryCount)
-
-  return selected.map((e) => ({
-    name: e.name,
-    primaryMuscle: e.primary_muscle,
-    secondaryMuscles: e.secondary_muscles || [],
-    sets: 3,
-    reps: '10-15',
-    restSeconds: 60,
-    difficulty: e.difficulty,
-    type: 'accessory' as const,
-    tips: e.tips || ['Controlled tempo'],
-  }))
-}
-
-function createFinisher(exercises: ExerciseLibrary[], preferences: RecommendationPreferences, highEnergy: boolean): GeneratedExercise | null {
-  if (!highEnergy || preferences.timeAvailable < 50) return null
-  const finishers = exercises.filter((e) => e.category === 'cardio')
-  if (finishers.length === 0) return null
-  const selected = finishers[0]
+function findFinisher(exercises: ExerciseLibrary[]): GeneratedExercise | null {
+  const cardio = exercises.filter((e) => e.category === 'cardio').slice(0, 1)
+  if (cardio.length === 0) return null
+  const selected = cardio[0]
   return {
     name: selected.name,
     primaryMuscle: selected.primary_muscle,
@@ -199,12 +272,12 @@ function createFinisher(exercises: ExerciseLibrary[], preferences: Recommendatio
     restSeconds: 0,
     difficulty: selected.difficulty,
     type: 'finisher',
-    tips: ['Go all out'],
+    tips: ['All out effort', 'High intensity'],
   }
 }
 
-function createCooldown(exercises: ExerciseLibrary[]): GeneratedExercise[] {
-  const cooldowns = exercises.filter((e) => e.category === 'cooldown')
+function findCooldownExercises(exercises: ExerciseLibrary[]): GeneratedExercise[] {
+  const cooldowns = exercises.filter((e) => e.category === 'cooldown').slice(0, 1)
   if (cooldowns.length === 0) {
     return [
       {
@@ -216,11 +289,11 @@ function createCooldown(exercises: ExerciseLibrary[]): GeneratedExercise[] {
         restSeconds: 0,
         difficulty: 'beginner',
         type: 'cooldown',
-        tips: ['Hold each stretch 30 seconds'],
+        tips: ['Hold 30 seconds each', 'Relax and breathe'],
       },
     ]
   }
-  return cooldowns.slice(0, 1).map((e) => ({
+  return cooldowns.map((e) => ({
     name: e.name,
     primaryMuscle: e.primary_muscle,
     secondaryMuscles: e.secondary_muscles || [],
@@ -228,32 +301,28 @@ function createCooldown(exercises: ExerciseLibrary[]): GeneratedExercise[] {
     reps: '5-10 min',
     restSeconds: 0,
     difficulty: e.difficulty,
-    type: 'cooldown' as const,
-    tips: e.tips || ['Relax and recover'],
+    type: 'cooldown',
+    tips: e.tips || [],
   }))
 }
 
-function calculateDuration(exercises: GeneratedExercise[]): number {
+function computeWorkoutDuration(exercises: GeneratedExercise[]): number {
   let total = 0
   exercises.forEach((e) => {
     const timePerSet = e.type === 'warmup' ? 3 : e.type === 'cooldown' ? 5 : e.type === 'finisher' ? 3 : 4
     const numSets = e.sets || 1
-    total += (timePerSet * numSets) + e.restSeconds / 60
+    total += timePerSet * numSets + e.restSeconds / 60
   })
   return Math.round(total)
 }
 
-function createSmartGoalText(mainLifts: GeneratedExercise[], preferences: RecommendationPreferences): string {
-  if (mainLifts.length === 0) {
-    return 'Complete a balanced workout session'
-  }
-  const reps = mainLifts[0].reps.split('-')[0]
-  const muscleStr = preferences.targetMuscles.join(' and ')
-  const setsStr = String(mainLifts[0].sets)
-  return 'Complete ' + mainLifts.length + ' exercises for ' + muscleStr + ' with ' + setsStr + ' sets of ' + reps + '+ reps'
+function generateSmartGoal(mainLifts: GeneratedExercise[], targetMuscles: string[]): string {
+  if (mainLifts.length === 0) return 'Complete a balanced workout'
+  const muscleStr = targetMuscles.join(' and ')
+  return 'Complete ' + mainLifts.length + ' compounds for ' + muscleStr + ' with quality form'
 }
 
-function createWorkoutName(preferences: RecommendationPreferences): string {
-  const muscleNames = preferences.targetMuscles.slice(0, 2).map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(' & ')
-  return muscleNames
+function generateWorkoutName(targetMuscles: string[]): string {
+  const shortened = targetMuscles.slice(0, 2).map((m) => m.charAt(0).toUpperCase() + m.slice(1))
+  return shortened.join(' & ')
 }

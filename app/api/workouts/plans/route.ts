@@ -27,10 +27,10 @@ export async function POST(request: Request) {
           user_id: user.id,
           name: plan.name,
           goal: plan.goal || 'general_fitness',
-          split_type: 'custom',
-          days_per_week: plan.trainingFrequency || 1,
+          split_type: plan.splitType || 'custom',
+          days_per_week: workoutDays.length,
           experience_level: plan.experienceLevel || 'beginner',
-          is_active: false,
+          is_active: true,
         },
       ])
       .select()
