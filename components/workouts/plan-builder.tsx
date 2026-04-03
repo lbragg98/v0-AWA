@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { SPLIT_TEMPLATES, AVAILABLE_BODY_PARTS } from '@/types/workouts'
-import type { BodyPart } from '@/types/workouts'
+import type { BodyPart, DayTemplate } from '@/types/workouts'
 import type { ExerciseLibrary } from '@/types/database'
 
 const DAYS_OF_WEEK = [
@@ -30,6 +30,10 @@ const DAYS_OF_WEEK = [
   { value: 5, label: 'Fri' },
   { value: 6, label: 'Sat' },
 ] as const
+
+type CustomDay = Omit<DayTemplate, 'bodyParts'> & {
+  bodyParts: BodyPart[]
+}
 
 function getDefaultTrainingDays(count: number): number[] {
   const presets: Record<number, number[]> = {
@@ -43,6 +47,20 @@ function getDefaultTrainingDays(count: number): number[] {
   }
 
   return presets[count] || [1, 3, 5]
+}
+
+function buildCustomDays(count: number, existingDays: Array<Partial<CustomDay>> = []): CustomDay[] {
+  return Array.from({ length: count }, (_, index) => {
+    const existingDay = existingDays[index]
+
+    return {
+      dayNumber: index + 1,
+      label: existingDay?.label || `Day ${index + 1}`,
+      bodyParts: existingDay?.bodyParts ? [...existingDay.bodyParts] : [],
+      estimatedMinutes: existingDay?.estimatedMinutes ?? 60,
+      trainingFocus: existingDay?.trainingFocus || 'Custom',
+    }
+  })
 }
 
 interface PlanBuilderProps {
@@ -70,14 +88,25 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
 
   // Step 4: Custom day customization
   const [customDays, setCustomDays] = useState(
-    SPLIT_TEMPLATES[selectedSplit as keyof typeof SPLIT_TEMPLATES]?.days || []
+    SPLIT_TEMPLATES[selectedSplit as keyof typeof SPLIT_TEMPLATES]?.days.map((day) => ({
+      ...day,
+      bodyParts: [...day.bodyParts],
+    })) || []
   )
 
   // Validation
   const isStep1Valid = planName.trim() !== ''
   const isStep2Valid = daysPerWeek >= 1 && daysPerWeek <= 7 && trainingDays.length === daysPerWeek
   const isStep3Valid = selectedSplit !== ''
-  const isStep4Valid = customDays.length > 0
+  const isStep4Valid =
+    customDays.length === daysPerWeek &&
+    customDays.every(
+      (day) =>
+        day.label.trim() !== '' &&
+        day.bodyParts.length > 0 &&
+        Number.isFinite(day.estimatedMinutes) &&
+        day.estimatedMinutes > 0
+    )
 
   const handleNext = () => {
     setError(null)
@@ -98,9 +127,19 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
 
   const handleSplitSelect = (splitId: string) => {
     setSelectedSplit(splitId)
+    if (splitId === 'custom') {
+      setCustomDays(buildCustomDays(daysPerWeek))
+      return
+    }
+
     const template = SPLIT_TEMPLATES[splitId as keyof typeof SPLIT_TEMPLATES]
     if (template) {
-      setCustomDays(template.days.slice(0, daysPerWeek))
+      setCustomDays(
+        template.days.slice(0, template.daysPerWeek).map((day) => ({
+          ...day,
+          bodyParts: [...day.bodyParts],
+        }))
+      )
       setDaysPerWeek(template.daysPerWeek)
       setTrainingDays(getDefaultTrainingDays(template.daysPerWeek))
     }
@@ -114,6 +153,17 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
       if (sorted.length > num) return sorted.slice(0, num)
       return getDefaultTrainingDays(num)
     })
+
+    if (selectedSplit === 'custom') {
+      setCustomDays((prev) => buildCustomDays(num, prev))
+      return
+    }
+
+    const template = SPLIT_TEMPLATES[selectedSplit as keyof typeof SPLIT_TEMPLATES]
+    if (!template || template.daysPerWeek !== num) {
+      setSelectedSplit('custom')
+      setCustomDays((prev) => buildCustomDays(num, prev))
+    }
   }
 
   const toggleTrainingDay = (day: number) => {
@@ -233,7 +283,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
               {[
                 { step: 0, label: 'Plan Name', desc: 'Name your plan' },
                 { step: 1, label: 'Training Days', desc: 'How many days/week?' },
-                { step: 2, label: 'Select Split', desc: 'Choose a template' },
+                { step: 2, label: 'Select Split', desc: 'Template or custom' },
                 { step: 3, label: 'Customize Days', desc: 'Adjust each day' },
               ].map((item) => (
                 <div
@@ -353,12 +403,37 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
           {currentStep === 2 && (
             <Card>
               <CardHeader>
-                <CardTitle>Choose a Split Template</CardTitle>
+                <CardTitle>Choose Your Split</CardTitle>
                 <CardDescription>
-                  Select a proven split pattern for {daysPerWeek} days/week training
+                  Pick a proven template or build your own split for {daysPerWeek} days per week
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <Button
+                  variant={selectedSplit === 'custom' ? 'default' : 'outline'}
+                  onClick={() => handleSplitSelect('custom')}
+                  className="w-full justify-start h-auto p-4 text-left"
+                >
+                  <div className="flex flex-col items-start gap-3 w-full">
+                    <div className="flex items-center justify-between w-full">
+                      <p className="font-semibold text-base">Custom Split</p>
+                      <Badge variant={selectedSplit === 'custom' ? 'default' : 'secondary'}>
+                        {daysPerWeek} days
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Start with blank training days and choose exactly which muscle groups each day should target.
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {Array.from({ length: daysPerWeek }, (_, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          Day {index + 1}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </Button>
+
                 {Object.values(SPLIT_TEMPLATES)
                   .filter((template) => template.daysPerWeek === daysPerWeek)
                   .map((template) => (
@@ -401,7 +476,7 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
               <CardHeader>
                 <CardTitle>Customize Your Training Days</CardTitle>
                 <CardDescription>
-                  Select which body parts to focus on each day. You can have multiple days focus on the same muscle groups.
+                  Name each day and choose its focus muscles. You can repeat muscle groups across days if that matches how you like to train.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
