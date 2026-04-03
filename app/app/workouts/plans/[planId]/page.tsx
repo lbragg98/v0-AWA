@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +22,9 @@ import type {
   Goal,
 } from '@/types/database'
 
-export default function PlanDetailPage({ params }: { params: { planId: string } }) {
+export default function PlanDetailPage({ params }: { params: Promise<{ planId: string }> }) {
+  const resolvedParams = use(params)
+  const planId = resolvedParams.planId
   const router = useRouter()
   const supabase = createClient()
   const [plan, setPlan] = useState<WorkoutPlan | null>(null)
@@ -43,7 +46,7 @@ export default function PlanDetailPage({ params }: { params: { planId: string } 
         const { data: planData } = await supabase
           .from('workout_plans')
           .select('*')
-          .eq('id', params.planId)
+          .eq('id', planId)
           .eq('user_id', user.id)
           .single()
 
@@ -58,7 +61,7 @@ export default function PlanDetailPage({ params }: { params: { planId: string } 
         const { data: daysData } = await supabase
           .from('workout_days')
           .select('*')
-          .eq('workout_plan_id', params.planId)
+          .eq('workout_plan_id', planId)
           .order('day_number')
 
         setWorkoutDays((daysData || []) as WorkoutDay[])
@@ -119,7 +122,7 @@ export default function PlanDetailPage({ params }: { params: { planId: string } 
     }
 
     fetchPlan()
-  }, [params.planId])
+  }, [planId])
 
   if (isLoading) {
     return (
@@ -195,7 +198,7 @@ export default function PlanDetailPage({ params }: { params: { planId: string } 
                 {workoutDays.map((day) => (
                   <Link
                     key={day.id}
-                    href={`/app/workouts/plans/${params.planId}/days/${day.id}`}
+                    href={`/app/workouts/plans/${planId}/days/${day.id}`}
                     className="block"
                   >
                     <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-foreground/30 transition-colors cursor-pointer">

@@ -56,7 +56,6 @@ export async function POST(request: Request) {
             name: day.name,
             target_muscles: day.targetMuscles || [],
             estimated_duration: day.estimated_minutes || 60,
-            smart_goal_text: day.smart_goal_text || null,
           },
         ])
         .select()

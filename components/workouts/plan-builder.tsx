@@ -43,7 +43,6 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
     label: 'Day 1',
     focus: 'Upper Body',
     estimated_minutes: 60,
-    smart_goal_text: 'Complete all sets with good form',
   })
 
   // Validation
@@ -86,7 +85,6 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
               targetMuscles: workoutDay.focus.trim() ? [workoutDay.focus.trim()] : [],
               exercises: [],
               estimated_minutes: workoutDay.estimated_minutes,
-              smart_goal_text: workoutDay.smart_goal_text.trim(),
             },
           ],
         }),
