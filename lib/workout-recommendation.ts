@@ -92,17 +92,34 @@ function findExercisesForMuscle(
 ): ExerciseLibrary[] {
   const normalizedTarget = normalizeMuscle(targetMuscle)
 
-  return exercises.filter((ex) => {
-    const primaryMatch = normalizeMuscle(ex.primary_muscle) === normalizedTarget
+  const matched = exercises.filter((ex) => {
+    if (!ex.primary_muscle && !ex.secondary_muscles) {
+      return false
+    }
+
+    // Match primary muscle
+    const primaryMatch = normalizeMuscle(ex.primary_muscle || '') === normalizedTarget
+
+    // Match secondary muscles as fallback
     const secondaryMatch =
       ex.secondary_muscles &&
+      Array.isArray(ex.secondary_muscles) &&
       ex.secondary_muscles.some((m) => normalizeMuscle(m) === normalizedTarget)
+
+    // Equipment filter
     const equipmentMatch =
-      !equipment || !ex.equipment || equipment.some((e) => ex.equipment?.includes(e))
-    const compoundMatch = !isCompound || ex.is_compound
+      !equipment || 
+      !ex.equipment || 
+      equipment.length === 0 ||
+      equipment.some((e) => ex.equipment?.toLowerCase().includes(e.toLowerCase()))
+
+    // Compound vs isolation
+    const compoundMatch = !isCompound || ex.is_compound === true
 
     return (primaryMatch || secondaryMatch) && equipmentMatch && compoundMatch
   })
+
+  return matched.sort(() => Math.random() - 0.5) // Shuffle for variety
 }
 
 export function generateWorkoutRecommendation(
@@ -168,9 +185,50 @@ function generateMainLifts(
   const results: GeneratedExercise[] = []
 
   for (const muscle of targetMuscles) {
-    if (recentlyTrained.includes(normalizeMuscle(muscle))) {
+    const normalizedMuscle = normalizeMuscle(muscle)
+    
+    // Skip if recently trained
+    if (recentlyTrained.includes(normalizedMuscle)) {
       continue
     }
+
+    // Find compound exercises first
+    let candidates = findExercisesForMuscle(muscle, exercises, equipment, true)
+
+    // Fallback 1: If no compounds, try isolation
+    if (candidates.length === 0) {
+      candidates = findExercisesForMuscle(muscle, exercises, equipment, false)
+    }
+
+    // Fallback 2: If still nothing, try without equipment restrictions
+    if (candidates.length === 0) {
+      candidates = findExercisesForMuscle(muscle, exercises, [], true)
+    }
+
+    // Fallback 3: Last resort - any exercise for this muscle
+    if (candidates.length === 0) {
+      candidates = findExercisesForMuscle(muscle, exercises, [], false)
+    }
+
+    if (candidates.length > 0) {
+      // Pick the first one (shuffled for variety)
+      const selected = candidates[0]
+      results.push({
+        name: selected.name,
+        primaryMuscle: selected.primary_muscle,
+        secondaryMuscles: selected.secondary_muscles || [],
+        sets: 3,
+        reps: '6-10',
+        restSeconds: 120,
+        difficulty: selected.difficulty || 'intermediate',
+        type: 'main',
+        tips: selected.tips || ['Control the weight', 'Full range of motion'],
+      })
+    }
+  }
+
+  return results
+}
 
     let candidates = findExercisesForMuscle(muscle, exercises, equipment, true)
 

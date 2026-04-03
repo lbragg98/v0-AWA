@@ -282,24 +282,40 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
             <Card>
               <CardHeader>
                 <CardTitle>Choose a Split Template</CardTitle>
-                <CardDescription>Select a proven split pattern for {daysPerWeek} days/week</CardDescription>
+                <CardDescription>
+                  Select a proven split pattern for {daysPerWeek} days/week training
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {Object.values(SPLIT_TEMPLATES)
-                  .filter((template) => template.daysPerWeek === daysPerWeek || daysPerWeek >= template.daysPerWeek)
+                  .filter((template) => template.daysPerWeek === daysPerWeek)
                   .map((template) => (
                     <Button
                       key={template.id}
                       variant={selectedSplit === template.id ? 'default' : 'outline'}
                       onClick={() => handleSplitSelect(template.id)}
-                      className="w-full justify-start h-auto p-4"
+                      className="w-full justify-start h-auto p-4 text-left"
                     >
-                      <div className="flex flex-col items-start gap-2 w-full">
+                      <div className="flex flex-col items-start gap-3 w-full">
                         <div className="flex items-center justify-between w-full">
-                          <p className="font-semibold">{template.name}</p>
-                          <Badge variant="secondary">{template.daysPerWeek}x/week</Badge>
+                          <p className="font-semibold text-base">{template.name}</p>
+                          <Badge variant={selectedSplit === template.id ? 'default' : 'secondary'}>
+                            {template.days.length} days
+                          </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground text-left">{template.description}</p>
+                        <p className="text-sm text-muted-foreground">{template.description}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {template.days.slice(0, 3).map((day, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {day.label.split(' ')[0]}
+                            </Badge>
+                          ))}
+                          {template.days.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{template.days.length - 3}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </Button>
                   ))}
@@ -311,51 +327,66 @@ export function PlanBuilder({ exercises, initialPlan, isEditing = false }: PlanB
           {currentStep === 3 && (
             <Card>
               <CardHeader>
-                <CardTitle>Customize Training Days</CardTitle>
-                <CardDescription>Adjust each day&apos;s focus and body parts</CardDescription>
+                <CardTitle>Customize Your Training Days</CardTitle>
+                <CardDescription>
+                  Select which body parts to focus on each day. You can have multiple days focus on the same muscle groups.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {customDays.map((day, dayIdx) => (
-                  <div key={dayIdx} className="border rounded-lg p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold">Day {dayIdx + 1}</h3>
-                      <Input
-                        placeholder="Day label"
-                        value={day.label}
-                        onChange={(e) => updateCustomDay(dayIdx, 'label', e.target.value)}
-                        className="w-40"
-                      />
+                  <div key={dayIdx} className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                    {/* Day Header */}
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1">
+                        <Label className="text-xs text-muted-foreground mb-1 block">Day {dayIdx + 1}</Label>
+                        <Input
+                          placeholder="e.g., Upper Power, Leg Day"
+                          value={day.label}
+                          onChange={(e) => updateCustomDay(dayIdx, 'label', e.target.value)}
+                          className="font-semibold"
+                        />
+                      </div>
+                      <div className="flex-shrink-0 w-24">
+                        <Label className="text-xs text-muted-foreground mb-1 block">Duration</Label>
+                        <div className="flex items-center">
+                          <Input
+                            type="number"
+                            min="30"
+                            max="180"
+                            value={day.estimatedMinutes}
+                            onChange={(e) => updateCustomDay(dayIdx, 'estimatedMinutes', parseInt(e.target.value))}
+                            className="text-center"
+                          />
+                          <span className="text-xs text-muted-foreground ml-1">min</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-sm">Body Parts Focus</Label>
-                      <div className="grid grid-cols-3 gap-2">
+                    {/* Body Parts Selection */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Focus Muscles</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {day.bodyParts.length === 0
+                          ? 'Select at least one muscle group'
+                          : `${day.bodyParts.length} muscle group${day.bodyParts.length !== 1 ? 's' : ''} selected`}
+                      </p>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                         {(AVAILABLE_BODY_PARTS as unknown as BodyPart[]).map((bodyPart) => (
                           <Button
                             key={bodyPart}
                             variant={day.bodyParts.includes(bodyPart) ? 'default' : 'outline'}
                             size="sm"
                             onClick={() => toggleBodyPart(dayIdx, bodyPart)}
-                            className="text-xs capitalize"
+                            className={`text-xs capitalize h-9 font-medium transition-colors ${
+                              day.bodyParts.includes(bodyPart)
+                                ? ''
+                                : 'hover:bg-muted hover:border-foreground/30'
+                            }`}
                           >
-                            {bodyPart}
+                            {bodyPart === 'abs' || bodyPart === 'lats' ? bodyPart.toUpperCase() : bodyPart}
                           </Button>
                         ))}
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`duration-${dayIdx}`} className="text-sm">
-                        Estimated Duration (minutes)
-                      </Label>
-                      <Input
-                        id={`duration-${dayIdx}`}
-                        type="number"
-                        min="30"
-                        max="180"
-                        value={day.estimatedMinutes}
-                        onChange={(e) => updateCustomDay(dayIdx, 'estimatedMinutes', parseInt(e.target.value))}
-                      />
                     </div>
                   </div>
                 ))}

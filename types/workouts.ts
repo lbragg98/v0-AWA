@@ -22,7 +22,7 @@ export type BodyPart = typeof AVAILABLE_BODY_PARTS[number]
 export interface DayTemplate {
   dayNumber: number
   label: string
-  bodyParts: BodyPart[]
+  bodyParts: readonly BodyPart[]
   estimatedMinutes: number
   trainingFocus: string
 }
