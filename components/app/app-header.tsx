@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Dumbbell, LogOut, User, BarChart3 } from 'lucide-react'
+import { Dumbbell, LogOut, User, BarChart3, Calendar } from 'lucide-react'
 import Link from 'next/link'
 
 interface AppHeaderProps {
@@ -52,6 +52,12 @@ export function AppHeader({ user }: AppHeaderProps) {
           </Link>
           <nav className="hidden md:flex items-center gap-1">
             <Button variant="ghost" size="sm" asChild>
+              <Link href="/app/today">
+                <Calendar className="mr-2 h-4 w-4" />
+                Today
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
               <Link href="/app/dashboard">Dashboard</Link>
             </Button>
             <Button variant="ghost" size="sm" asChild>
@@ -82,6 +88,12 @@ export function AppHeader({ user }: AppHeaderProps) {
               </div>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="md:hidden">
+              <Link href="/app/today" className="cursor-pointer">
+                <Calendar className="mr-2 h-4 w-4" />
+                Today
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem asChild className="md:hidden">
               <Link href="/app/dashboard" className="cursor-pointer">
                 Dashboard
