@@ -53,13 +53,13 @@ export function ProfileSummaryCard({ profile, fitnessProfile }: ProfileSummaryCa
           {fitnessProfile?.weight && (
             <div className="flex items-center gap-2">
               <Scale className="h-4 w-4 text-muted-foreground" />
-              <span>{fitnessProfile.weight} kg</span>
+              <span>{fitnessProfile.weight} lb</span>
             </div>
           )}
           {fitnessProfile?.height && (
             <div className="flex items-center gap-2">
               <Ruler className="h-4 w-4 text-muted-foreground" />
-              <span>{fitnessProfile.height} cm</span>
+              <span>{fitnessProfile.height} in</span>
             </div>
           )}
         </div>
@@ -76,7 +76,7 @@ export function ProfileSummaryCard({ profile, fitnessProfile }: ProfileSummaryCa
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Equipment</span>
             <span className="text-right max-w-[150px] truncate">
-              {fitnessProfile?.available_equipment?.length 
+              {fitnessProfile?.available_equipment?.length
                 ? fitnessProfile.available_equipment.slice(0, 3).join(', ')
                 : 'Not set'}
               {(fitnessProfile?.available_equipment?.length || 0) > 3 && '...'}
@@ -88,9 +88,9 @@ export function ProfileSummaryCard({ profile, fitnessProfile }: ProfileSummaryCa
           <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-border pt-4">
             <Calendar className="h-3 w-3" />
             <span>
-              Member since {new Date(profile.created_at).toLocaleDateString('en-US', { 
-                month: 'long', 
-                year: 'numeric' 
+              Member since {new Date(profile.created_at).toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric'
               })}
             </span>
           </div>
