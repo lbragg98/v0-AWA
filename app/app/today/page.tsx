@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Calendar, Zap, Target, Plus, ArrowRight, TrendingUp, CheckCircle2, Dumbbell, Sparkles } from 'lucide-react'
@@ -24,7 +24,6 @@ export default async function TodayPage() {
     redirect('/auth/login')
   }
 
-  // Fetch all necessary data in parallel
   const [
     profileResult,
     fitnessProfileResult,
@@ -33,39 +32,12 @@ export default async function TodayPage() {
     streakResult,
     muscleProgressResult,
   ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single(),
-    supabase
-      .from('fitness_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single(),
-    supabase
-      .from('goals')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('workout_plans')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single(),
-    supabase
-      .from('user_streaks')
-      .select('*')
-      .eq('user_id', user.id)
-      .single(),
-    supabase
-      .from('muscle_progress')
-      .select('*, muscle_group:muscle_groups(*)')
-      .eq('user_id', user.id)
-      .order('level', { ascending: false })
-      .limit(5),
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase.from('fitness_profiles').select('*').eq('user_id', user.id).single(),
+    supabase.from('goals').select('*').eq('user_id', user.id).eq('status', 'active').order('created_at', { ascending: false }),
+    supabase.from('workout_plans').select('*').eq('user_id', user.id).eq('is_active', true).single(),
+    supabase.from('user_streaks').select('*').eq('user_id', user.id).single(),
+    supabase.from('muscle_progress').select('*, muscle_group:muscle_groups(*)').eq('user_id', user.id).order('level', { ascending: false }).limit(5),
   ])
 
   const profile = profileResult.data as Profile | null
@@ -73,9 +45,8 @@ export default async function TodayPage() {
   const goals = (goalsResult.data || []) as Goal[]
   const activePlan = plansResult.data as WorkoutPlan | null
   const streak = streakResult.data as UserStreak | null
-  const topMuscles = (muscleProgressResult.data || [])
+  const topMuscles = muscleProgressResult.data || []
 
-  // Get today's workout day if plan exists
   let todayWorkout: (WorkoutDay & { exercises?: any[] }) | null = null
   if (activePlan) {
     const today = new Date().getDay()
@@ -91,7 +62,7 @@ export default async function TodayPage() {
         fitnessProfile?.preferred_training_days as Array<number | string> | undefined
       )
       const dayIndex = preferredDays.findIndex((d) => d === today)
-      
+
       if (dayIndex >= 0 && workoutDays[dayIndex]) {
         todayWorkout = workoutDays[dayIndex]
         const { data: exercisesData } = await supabase
@@ -104,9 +75,8 @@ export default async function TodayPage() {
     }
   }
 
-  // Determine primary action with correct priority
   type PrimaryActionType = 'workout' | 'setup' | 'goal' | 'generate' | 'rest'
-  
+
   let primaryAction: {
     title: string
     description: string
@@ -117,7 +87,6 @@ export default async function TodayPage() {
   } | null = null
 
   if (!activePlan) {
-    // New user: no plan yet
     primaryAction = {
       title: 'Set Up Your Training Week',
       description: 'Create your weekly plan so Forge can schedule workouts and guide your progress.',
@@ -129,7 +98,6 @@ export default async function TodayPage() {
       type: 'setup',
     }
   } else if (todayWorkout) {
-    // User has a workout scheduled for today
     primaryAction = {
       title: `Ready for ${todayWorkout.name}?`,
       description: `${todayWorkout.exercises?.length || 0} exercises • ${todayWorkout.estimated_duration || 45} min`,
@@ -141,7 +109,6 @@ export default async function TodayPage() {
       type: 'workout',
     }
   } else if (goals.length === 0) {
-    // Has plan but no workout today, and no goals
     primaryAction = {
       title: 'Generate Today\'s Workout',
       description: 'Let Forge create a personalized workout based on your plan and recovery.',
@@ -153,10 +120,9 @@ export default async function TodayPage() {
       type: 'generate',
     }
   } else {
-    // Has plan and goals, no workout today (rest day)
     primaryAction = {
       title: 'Generate Today\'s Workout',
-      description: 'Or take a rest day - recovery is essential for progress.',
+      description: 'Or take a rest day. Recovery is part of the mission.',
       icon: <Sparkles className="h-8 w-8" />,
       buttons: [
         { text: 'Generate Workout', href: '/app/workouts', variant: 'default' },
@@ -166,65 +132,65 @@ export default async function TodayPage() {
     }
   }
 
+  const normalizedTrainingDays = normalizeTrainingDays(
+    fitnessProfile?.preferred_training_days as Array<number | string> | undefined
+  )
+
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">
+    <div className="app-shell space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/75">Forge Command</p>
+        <h1 className="text-3xl font-bold text-foreground md:text-4xl">
           {format(new Date(), 'EEEE')}
         </h1>
         <p className="text-sm text-muted-foreground">
           {format(new Date(), 'MMMM d, yyyy')}
+          {profile?.full_name ? ` • ${profile.full_name}` : ''}
         </p>
       </div>
 
-      {/* Primary Action Hero Card */}
       {primaryAction && (
-        <Card className={`border-2 overflow-hidden ${
-          primaryAction.type === 'workout' 
-            ? 'border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-transparent' 
-            : primaryAction.type === 'setup'
-            ? 'border-blue-500/30 bg-gradient-to-br from-blue-500/5 to-transparent'
-            : primaryAction.type === 'generate'
-            ? 'border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent'
-            : 'border-muted bg-gradient-to-br from-muted/30 to-transparent'
+        <Card className={`overflow-hidden rounded-[2rem] border px-0 py-0 ${
+          primaryAction.type === 'workout'
+            ? 'surface-glow-active border-primary/35 bg-[linear-gradient(145deg,rgba(21,42,69,0.98),rgba(11,18,28,0.98))]'
+            : 'border-white/8 bg-[linear-gradient(145deg,rgba(17,24,39,0.98),rgba(11,15,20,0.98))]'
         }`}>
-          <CardContent className="p-6 md:p-8">
-            <div className="flex flex-col md:flex-row md:items-center gap-6">
-              <div className="flex gap-4 items-start flex-1">
-                <div className={`rounded-xl p-4 shrink-0 ${
+          <CardContent className="relative p-6 md:p-7">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(83,193,255,0.18),transparent_34%)]" />
+            <div className="relative flex flex-col gap-5 md:flex-row md:items-center">
+              <div className="flex flex-1 gap-4 items-start">
+                <div className={`rounded-2xl border p-4 shrink-0 ${
                   primaryAction.type === 'workout'
-                    ? 'bg-primary text-primary-foreground'
-                    : primaryAction.type === 'setup'
-                    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                    : primaryAction.type === 'generate'
-                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                    : 'bg-muted text-muted-foreground'
+                    ? 'border-primary/20 bg-primary/16 text-primary shadow-[0_0_24px_rgba(83,193,255,0.18)]'
+                    : 'border-white/8 bg-white/6 text-primary'
                 }`}>
                   {primaryAction.icon}
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl md:text-2xl font-bold text-foreground">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/75">
+                    {primaryAction.type === 'workout' ? 'Today\'s Mission' : 'Mission Control'}
+                  </p>
+                  <h2 className="text-2xl font-bold text-foreground md:text-3xl">
                     {primaryAction.title}
                   </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                     {primaryAction.description}
                   </p>
                   {primaryAction.subtext && (
-                    <p className="mt-2 text-xs text-muted-foreground/80 font-medium">
+                    <p className="mt-3 inline-flex rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-medium text-primary/90">
                       {primaryAction.subtext}
                     </p>
                   )}
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0 flex-col-reverse md:flex-col">
+              <div className="flex shrink-0 flex-col gap-2 md:min-w-[240px]">
                 {primaryAction.buttons.map((button, i) => (
-                  <Button 
+                  <Button
                     key={i}
-                    asChild 
+                    asChild
                     size={i === 0 ? 'lg' : 'sm'}
                     variant={button.variant as any || 'default'}
-                    className={i > 0 ? 'hidden md:flex' : ''}
+                    className={i === 0 ? 'w-full justify-between' : 'hidden md:flex md:w-full'}
                   >
                     <Link href={button.href}>
                       {button.text}
@@ -238,59 +204,63 @@ export default async function TodayPage() {
         </Card>
       )}
 
-      {/* Today's Focus Card */}
       {todayWorkout ? (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Dumbbell className="h-4 w-4" />
-              Today's Focus
+        <Card className="overflow-hidden border-primary/20 bg-[linear-gradient(160deg,rgba(19,30,49,0.98),rgba(12,18,28,0.98))]">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Dumbbell className="h-4 w-4 text-primary" />
+              Today&apos;s Workout
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <div className="grid grid-cols-3 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Duration</p>
-                <p className="font-semibold">{todayWorkout.estimated_duration || '--'} min</p>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                <p className="text-xs font-medium text-muted-foreground">Duration</p>
+                <p className="mt-1 text-lg font-semibold">{todayWorkout.estimated_duration || '--'} min</p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Exercises</p>
-                <p className="font-semibold">{todayWorkout.exercises?.length || 0}</p>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                <p className="text-xs font-medium text-muted-foreground">Exercises</p>
+                <p className="mt-1 text-lg font-semibold">{todayWorkout.exercises?.length || 0}</p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Intensity</p>
-                <p className="font-semibold text-amber-600 dark:text-amber-400">Moderate</p>
+              <div className="rounded-2xl border border-primary/18 bg-primary/10 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Status</p>
+                <p className="mt-1 text-lg font-semibold text-primary">Active</p>
               </div>
             </div>
+
             {todayWorkout.target_muscles && todayWorkout.target_muscles.length > 0 && (
-              <div className="pt-3 border-t">
-                <p className="text-xs text-muted-foreground font-medium mb-2">Target Muscles</p>
-                <div className="flex flex-wrap gap-1">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">Target Muscles</p>
+                <div className="flex flex-wrap gap-2">
                   {(todayWorkout.target_muscles as string[]).map((muscle) => (
-                    <Badge key={muscle} variant="secondary" className="text-xs">
+                    <Badge key={muscle} variant="secondary">
                       {muscle}
                     </Badge>
                   ))}
                 </div>
               </div>
             )}
-            <Button asChild className="w-full mt-4">
+
+            <Button asChild size="lg" className="w-full justify-between">
               <Link href={`/app/workouts/plans/${activePlan?.id}/start?dayId=${todayWorkout.id}`}>
-                <Zap className="mr-2 h-4 w-4" />
-                Start Workout
+                <span className="inline-flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Start Workout
+                </span>
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </CardContent>
         </Card>
       ) : !activePlan ? (
-        <Card className="border-dashed">
+        <Card className="border-dashed border-white/8 bg-card/80">
           <CardContent className="py-6">
             <div className="text-center">
-              <div className="rounded-full bg-blue-500/10 p-3 w-fit mx-auto mb-3">
-                <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <div className="mx-auto mb-3 flex w-fit rounded-2xl border border-primary/15 bg-primary/10 p-3">
+                <Calendar className="h-6 w-6 text-primary" />
               </div>
               <h3 className="font-semibold text-sm">No Plan Yet</h3>
-              <p className="text-xs text-muted-foreground mt-1">Create a weekly plan to schedule your workouts</p>
+              <p className="mt-1 text-xs text-muted-foreground">Create a weekly plan to schedule your workouts</p>
               <Button variant="outline" size="sm" asChild className="mt-3">
                 <Link href="/app/workouts/plans/new">
                   <Plus className="mr-1 h-3 w-3" />
@@ -301,15 +271,15 @@ export default async function TodayPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-dashed">
+        <Card className="border-dashed border-white/8 bg-card/80">
           <CardContent className="py-6">
             <div className="text-center">
-              <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-3 w-fit mx-auto mb-3">
-                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <div className="mx-auto mb-3 flex w-fit rounded-2xl border border-white/8 bg-white/[0.05] p-3">
+                <CheckCircle2 className="h-6 w-6 text-primary" />
               </div>
               <h3 className="font-semibold text-sm">No Workout Today</h3>
-              <p className="text-xs text-muted-foreground mt-1">You&apos;re scheduled to rest. Recovery is when muscles grow!</p>
-              <div className="flex gap-2 justify-center mt-3">
+              <p className="mt-1 text-xs text-muted-foreground">You&apos;re scheduled to rest. Recovery is part of the progression loop.</p>
+              <div className="mt-3 flex justify-center gap-2">
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/app/workouts">
                     <Sparkles className="mr-1 h-3 w-3" />
@@ -327,30 +297,33 @@ export default async function TodayPage() {
         </Card>
       )}
 
-      {/* Weekly Schedule */}
       {activePlan ? (
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">This Week's Schedule</p>
-          <div className="grid grid-cols-7 gap-1.5">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">This Week&apos;s Schedule</p>
+          <div className="grid grid-cols-7 gap-2">
             {DAYS.map((day, index) => {
               const isToday = new Date().getDay() === index
-              const isTrainingDay = normalizeTrainingDays(
-                fitnessProfile?.preferred_training_days as Array<number | string> | undefined
-              ).includes(index)
+              const isTrainingDay = normalizedTrainingDays.includes(index)
               return (
                 <div
                   key={day}
-                  className={`flex flex-col items-center justify-center rounded-lg border p-2.5 text-center transition-all ${
+                  className={`flex min-h-20 flex-col items-center justify-center rounded-2xl border px-2 py-3 text-center transition-all ${
                     isToday
-                      ? 'border-primary bg-primary/15 ring-2 ring-primary/30'
+                      ? 'surface-glow-active border-primary/35 bg-primary/16'
                       : isTrainingDay
-                      ? 'border-border bg-muted/50 hover:bg-muted/70'
-                      : 'border-border/50 bg-muted/20 hover:bg-muted/30'
+                      ? 'border-primary/16 bg-white/[0.06] hover:border-primary/24 hover:bg-primary/8'
+                      : 'border-white/6 bg-white/[0.03]'
                   }`}
                 >
-                  <span className="text-xs font-medium text-muted-foreground">{day}</span>
-                  <span className={`text-xs font-bold mt-1 ${isTrainingDay ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {isTrainingDay ? '💪' : '😴'}
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{day}</span>
+                  <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    isToday
+                      ? 'bg-primary text-primary-foreground'
+                      : isTrainingDay
+                      ? 'bg-primary/12 text-primary'
+                      : 'bg-white/[0.05] text-muted-foreground'
+                  }`}>
+                    {isTrainingDay ? 'Train' : 'Rest'}
                   </span>
                 </div>
               )
@@ -359,19 +332,17 @@ export default async function TodayPage() {
         </div>
       ) : null}
 
-      {/* Goals and Stats */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Active Goals */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Target className="h-4 w-4" />
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Target className="h-4 w-4 text-primary" />
               Active Goals
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
             {goals.length === 0 ? (
-              <div className="text-center py-3">
+              <div className="py-3 text-center">
                 <p className="text-xs text-muted-foreground">No goals yet</p>
                 <Button variant="ghost" size="sm" asChild className="mt-2 h-7 w-full">
                   <Link href="/app/progress">
@@ -381,18 +352,18 @@ export default async function TodayPage() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {goals.slice(0, 2).map((goal) => {
                   const progress = goal.target_value > 0 ? Math.min((goal.current_value / goal.target_value) * 100, 100) : 0
                   return (
-                    <div key={goal.id}>
-                      <div className="flex items-center justify-between mb-1">
+                    <div key={goal.id} className="rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                      <div className="mb-2 flex items-center justify-between">
                         <span className="font-medium text-xs">{goal.title}</span>
                         <span className="text-xs font-semibold text-primary">{Math.round(progress)}%</span>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-2.5 overflow-hidden rounded-full border border-white/8 bg-white/[0.05]">
                         <div
-                          className="h-full bg-primary rounded-full transition-all"
+                          className="h-full rounded-full bg-[linear-gradient(90deg,rgba(83,193,255,0.72),rgba(111,229,255,0.98))] transition-all"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -400,7 +371,7 @@ export default async function TodayPage() {
                   )
                 })}
                 {goals.length > 2 && (
-                  <Button variant="ghost" size="sm" asChild className="w-full h-7 text-xs mt-1">
+                  <Button variant="ghost" size="sm" asChild className="mt-1 h-7 w-full text-xs">
                     <Link href="/app/progress">
                       View all ({goals.length})
                     </Link>
@@ -411,35 +382,36 @@ export default async function TodayPage() {
           </CardContent>
         </Card>
 
-        {/* Stats Card */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <TrendingUp className="h-4 w-4 text-primary" />
               Your Progress
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
-            <div className="space-y-2">
+            <div className="space-y-3">
               {streak && (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.04] p-3">
                   <span className="text-xs text-muted-foreground">Current Streak</span>
                   <span className="font-bold text-base text-primary">{streak.current_streak} days</span>
                 </div>
               )}
               {topMuscles.length > 0 && (
-                <div className="pt-2 border-t space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Top Muscle Groups</p>
-                  {topMuscles.slice(0, 2).map((muscle: any) => (
-                    <div key={muscle.id} className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground capitalize">
-                        {muscle.muscle_group?.name || 'Unknown'}
-                      </span>
-                      <Badge variant="secondary" className="text-xs font-semibold">
-                        Lvl {Math.round(muscle.level || 0)}
-                      </Badge>
-                    </div>
-                  ))}
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Top Muscle Groups</p>
+                  <div className="space-y-2">
+                    {topMuscles.slice(0, 2).map((muscle: any) => (
+                      <div key={muscle.id} className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {muscle.muscle_group?.name || 'Unknown'}
+                        </span>
+                        <Badge variant="secondary" className="font-semibold">
+                          Lvl {Math.round(muscle.level || 0)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -447,7 +419,6 @@ export default async function TodayPage() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
       <div className="flex flex-wrap gap-2">
         {!activePlan && (
           <Button variant="outline" size="sm" asChild>
